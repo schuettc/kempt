@@ -1,19 +1,21 @@
 name: release
 
-# Merge to main = release. The VERSION file is the knob: when a merge lands on
-# main and no tag v<VERSION> exists yet, this workflow creates the GitHub
-# release (auto-generated notes) and attaches cross-compiled binaries
-# (cgo-free: darwin/linux × arm64/amd64), each with a sha256 checksum. Every
-# binary is stamped with this release's version/commit via -ldflags -X into
-# internal/version. A merge that doesn't bump VERSION releases nothing, so a
-# re-push at the same VERSION is a no-op.
+# MANUAL-ONLY during pre-launch. kempt is still in private development on a
+# public repo; we do NOT want a push to main to cut a public release yet. This
+# workflow runs only on workflow_dispatch, so releases are cut deliberately
+# (e.g. a throwaway test release to validate install.sh + kempt update, later
+# a real v<VERSION> after the history wipe + public flip). When launching for
+# real, restore the `push: branches: [main]` trigger so a VERSION bump releases.
+#
+# The VERSION file is the knob: the workflow tags v<VERSION>; if that release
+# already exists it is a no-op. Binaries are cross-compiled cgo-free
+# (darwin/linux × arm64/amd64), each with a sha256 checksum, stamped with
+# version/commit via -ldflags -X into internal/version.
 #
 # kempt is a single, UNSIGNED binary — there is no macOS signing/notarization
 # and nothing that needs a macOS runner, so the whole job cross-compiles from
 # ubuntu-latest.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
