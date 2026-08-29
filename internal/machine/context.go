@@ -18,6 +18,13 @@ type Context struct {
 	Arch     string // runtime.GOARCH at construction; overridable in tests
 	Runner   run.Runner
 	Releases release.Releases // wired in Task 7; nil until then
+
+	// Cache memoizes read-only inventory command output within one
+	// plan/apply run. It is keyed by the FakeRunner key string
+	// (strings.TrimSpace(name+" "+strings.Join(args," "))) and holds the
+	// command's stdout. Handlers use it so repeated inventory probes
+	// (e.g. "brew list --formula -1") run at most once per run.
+	Cache map[string]string
 }
 
 // New constructs a Context for the given repository directory using the
@@ -34,6 +41,7 @@ func New(repoDir string, r run.Runner) (*Context, error) {
 		OS:      runtime.GOOS,
 		Arch:    runtime.GOARCH,
 		Runner:  r,
+		Cache:   map[string]string{},
 	}, nil
 }
 

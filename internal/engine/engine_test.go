@@ -48,7 +48,10 @@ func buildCtx(t *testing.T) *machine.Context {
 		RepoDir: tmp,
 		OS:      "darwin",
 		Arch:    "arm64",
-		Runner:  run.RealRunner{},
+		// Empty FakeRunner: LookPath("brew") misses, so the install step
+		// resolves to OpBlocked "(brew not found)" deterministically.
+		Runner: &run.FakeRunner{},
+		Cache:  map[string]string{},
 	}
 }
 
@@ -94,7 +97,7 @@ func TestBuildPlanOrderAndOps(t *testing.T) {
 	if b.Steps[0].Delta.Op != engine.OpBlocked {
 		t.Fatalf("b install op = %v, want blocked", b.Steps[0].Delta.Op)
 	}
-	if b.Steps[0].Delta.Detail != "handler not implemented yet (phase 1b)" {
+	if b.Steps[0].Delta.Detail != "install (brew not found)" {
 		t.Fatalf("b install detail = %q", b.Steps[0].Delta.Detail)
 	}
 	if b.Steps[1].Delta.Op != engine.OpSkip {
@@ -117,7 +120,7 @@ func TestRenderGolden(t *testing.T) {
 	want := fmt.Sprintf(`package a
   + symlink %s -> %s (create)
 package b
-  ! handler not implemented yet (phase 1b)
+  ! install (brew not found)
   - symlink (skipped: os != windows)
 package win (skipped: os != windows)
 1 changes, 0 ok, 1 skipped, 1 blocked
