@@ -41,7 +41,9 @@ type Step interface {
 }
 
 type Finding struct {
-	Path string // e.g. `packages.core.symlink[0]`
+	// Path uses per-kind step indices: packages.core.symlink[1] is the second
+	// [[packages.core.symlink]] table, regardless of other kinds interleaved.
+	Path string
 	Msg  string
 }
 

@@ -187,9 +187,13 @@ func validateOnly(m *Manifest) []Finding {
 	for _, name := range sortedPackageNames(m) {
 		pkg := m.Packages[name]
 		findings = append(findings, onlyFindings(fmt.Sprintf("packages.%s.only", name), pkg.Only)...)
-		for i, step := range pkg.Steps {
-			path := fmt.Sprintf("packages.%s.%s[%d].only", name, step.Kind(), i)
+		kindIdx := map[string]int{}
+		for _, step := range pkg.Steps {
+			kind := step.Kind()
+			idx := kindIdx[kind]
+			path := fmt.Sprintf("packages.%s.%s[%d].only", name, kind, idx)
 			findings = append(findings, onlyFindings(path, stepOnly(step))...)
+			kindIdx[kind]++
 		}
 	}
 	return findings
@@ -246,7 +250,8 @@ func missingFields(s Step) []string {
 		req(v.File != "", "file")
 		req(v.Line != "", "line")
 	case InstallStep:
-		hasBackend := (v.Brew != nil) || len(v.Winget) > 0 || len(v.Apt) > 0
+		brewHasContent := v.Brew != nil && (len(v.Brew.Formulas) > 0 || len(v.Brew.Casks) > 0 || len(v.Brew.Taps) > 0)
+		hasBackend := brewHasContent || len(v.Winget) > 0 || len(v.Apt) > 0
 		req(hasBackend, "install")
 	case VerifyStep:
 		hasCheck := v.CommandExists != "" || v.SymlinkTarget != nil || v.VersionCurrent != nil
@@ -260,13 +265,17 @@ func validateStepFields(m *Manifest) []Finding {
 	var findings []Finding
 	for _, name := range sortedPackageNames(m) {
 		pkg := m.Packages[name]
-		for i, step := range pkg.Steps {
+		kindIdx := map[string]int{}
+		for _, step := range pkg.Steps {
+			kind := step.Kind()
+			idx := kindIdx[kind]
 			for _, field := range missingFields(step) {
 				findings = append(findings, Finding{
-					Path: fmt.Sprintf("packages.%s.%s[%d]", name, step.Kind(), i),
+					Path: fmt.Sprintf("packages.%s.%s[%d]", name, kind, idx),
 					Msg:  fmt.Sprintf("missing required field %q", field),
 				})
 			}
+			kindIdx[kind]++
 		}
 	}
 	return findings
