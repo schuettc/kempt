@@ -177,6 +177,33 @@ func TestJSONMergeCreateMissingFile(t *testing.T) {
 	}
 }
 
+// TestJSONMergeIntegerKeyNoSpuriousChange verifies that a TOML-decoded int64
+// value (e.g. count=42) is not spuriously listed as a changed key when the
+// current JSON file already contains the same integer as float64 (JSON numbers
+// always decode to float64). The fix normalises desired via toAny before
+// passing to mergeKeys so both sides share the same float64 type.
+func TestJSONMergeIntegerKeyNoSpuriousChange(t *testing.T) {
+	h := jsonHandler(t)
+	ctx := testCtx(t)
+	f := filepath.Join(ctx.RepoDir, "c.json")
+	writeJSON(t, f, map[string]any{"count": 42.0, "name": "old"})
+	// int64(42) mirrors what TOML decoding produces for an integer value.
+	s := manifest.JSONMergeStep{File: f, Merge: map[string]any{"count": int64(42), "name": "new"}}
+	d, err := h.Inspect(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v, want change", d.Op)
+	}
+	if !strings.Contains(d.Detail, "name") {
+		t.Fatalf("detail %q should mention name", d.Detail)
+	}
+	if strings.Contains(d.Detail, "count") {
+		t.Fatalf("detail %q should NOT mention count (spurious type-mismatch)", d.Detail)
+	}
+}
+
 func TestIsSubset(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -190,6 +217,9 @@ func TestIsSubset(t *testing.T) {
 		{"nested map subset", map[string]any{"a": map[string]any{"b": 1.0}}, map[string]any{"a": map[string]any{"b": 1.0, "c": 2.0}}, true},
 		{"array elements present", []any{"b"}, []any{"a", "b"}, true},
 		{"array element missing", []any{"z"}, []any{"a", "b"}, false},
+		// type-conflict hotspots
+		{"desired map current scalar", map[string]any{"a": 1.0}, "scalar", false},
+		{"desired array current nil", []any{"a"}, nil, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -209,6 +239,8 @@ func TestMerge(t *testing.T) {
 		{"map recurse", map[string]any{"a": 2.0}, map[string]any{"a": 1.0, "b": 3.0}, map[string]any{"a": 2.0, "b": 3.0}},
 		{"array append missing", []any{"b", "c"}, []any{"a", "b"}, []any{"a", "b", "c"}},
 		{"nested map", map[string]any{"x": map[string]any{"y": 2.0}}, map[string]any{"x": map[string]any{"z": 1.0}}, map[string]any{"x": map[string]any{"y": 2.0, "z": 1.0}}},
+		// type-conflict hotspot: desired map, current scalar → desired map wins, no panic
+		{"desired map current scalar", map[string]any{"a": 1.0}, "scalar", map[string]any{"a": 1.0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

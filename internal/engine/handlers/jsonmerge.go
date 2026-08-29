@@ -46,7 +46,7 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 		return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
 	}
 
-	keys := mergeKeys(st.Merge, current)
+	keys := mergeKeys(desired.(map[string]any), current)
 	return engine.Delta{Op: engine.OpChange, Detail: base + fmt.Sprintf(" (merge keys: %s)", strings.Join(keys, ", "))}, nil
 }
 
