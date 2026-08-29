@@ -52,4 +52,15 @@ func Render(p *Plan, w io.Writer) {
 	if changes > 0 {
 		fmt.Fprintf(w, "software changes: %d, file changes: %d\n", software, files)
 	}
+
+	var allNotes []string
+	for _, pp := range p.Packages {
+		allNotes = append(allNotes, pp.Notes...)
+	}
+	if len(allNotes) > 0 {
+		fmt.Fprintf(w, "manual follow-ups:\n")
+		for _, note := range allNotes {
+			fmt.Fprintf(w, "  - %s\n", note)
+		}
+	}
 }

@@ -21,6 +21,7 @@ type rawPackage struct {
 	Description   string              `toml:"description"`
 	Needs         []string            `toml:"needs"`
 	Only          *Only               `toml:"only"`
+	Notes         []string            `toml:"notes"`
 	Install       []InstallStep       `toml:"install"`
 	GithubRelease []GithubReleaseStep `toml:"github-release"`
 	GitClone      []GitCloneStep      `toml:"git-clone"`
@@ -75,6 +76,7 @@ func Parse(src []byte) (*Manifest, []Finding) {
 			Needs:       rp.Needs,
 			Only:        rp.Only,
 			Steps:       interleave(md, name, rp),
+			Notes:       rp.Notes,
 		}
 	}
 	for name, pr := range raw.Profiles {

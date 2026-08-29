@@ -22,6 +22,7 @@ type Package struct {
 	Needs       []string
 	Only        *Only
 	Steps       []Step // document order
+	Notes       []string
 }
 
 type Profile struct {

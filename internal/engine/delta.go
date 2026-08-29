@@ -58,6 +58,7 @@ type PackagePlan struct {
 	Skipped bool   // whole package filtered by only
 	Detail  string // skip reason when Skipped (e.g. "os != darwin")
 	Steps   []StepResult
+	Notes   []string
 }
 
 // Plan is the ordered set of package plans.

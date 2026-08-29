@@ -113,3 +113,30 @@ func TestParseUnknownKeyIsFinding(t *testing.T) {
 		t.Fatal("want finding for unknown key 'bogus'")
 	}
 }
+
+func TestParseNotes(t *testing.T) {
+	src := []byte(`
+[kempt]
+spec = 1
+[packages.core]
+description = "core tools"
+notes = ["run codex login", "grant access"]
+`)
+	m, findings := Parse(src)
+	if len(findings) != 0 {
+		t.Fatalf("unexpected findings: %v", findings)
+	}
+	pkg, ok := m.Packages["core"]
+	if !ok {
+		t.Fatal("missing package core")
+	}
+	if len(pkg.Notes) != 2 {
+		t.Fatalf("notes = %v, want 2 entries", pkg.Notes)
+	}
+	if pkg.Notes[0] != "run codex login" {
+		t.Fatalf("notes[0] = %q, want \"run codex login\"", pkg.Notes[0])
+	}
+	if pkg.Notes[1] != "grant access" {
+		t.Fatalf("notes[1] = %q, want \"grant access\"", pkg.Notes[1])
+	}
+}

@@ -17,7 +17,7 @@ import (
 func BuildPlan(ctx *machine.Context, pkgs []*manifest.Package) (*Plan, error) {
 	p := &Plan{}
 	for _, pkg := range pkgs {
-		pp := PackagePlan{Name: pkg.Name}
+		pp := PackagePlan{Name: pkg.Name, Notes: pkg.Notes}
 		if reason, skip := skipReason(ctx, pkg.Only); skip {
 			pp.Skipped = true
 			pp.Detail = reason

@@ -3,6 +3,7 @@ package engine_test
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/schuettc/kempt/internal/engine"
@@ -139,6 +140,58 @@ func TestBuildPlanUnimplementedHandlerFallback(t *testing.T) {
 	}
 	if step.Delta.Detail != "handler not implemented yet (phase 1b)" {
 		t.Fatalf("bogus step detail = %q", step.Delta.Detail)
+	}
+}
+
+func TestRenderNotesFooter(t *testing.T) {
+	plan := &engine.Plan{
+		Packages: []engine.PackagePlan{
+			{Name: "core", Notes: []string{"run codex login", "grant access"}},
+		},
+	}
+	var buf bytes.Buffer
+	engine.Render(plan, &buf)
+	out := buf.String()
+	if !strings.Contains(out, "manual follow-ups:") {
+		t.Fatalf("render output missing 'manual follow-ups:'\n%s", out)
+	}
+	if !strings.Contains(out, "  - run codex login") {
+		t.Fatalf("render output missing '  - run codex login'\n%s", out)
+	}
+	if !strings.Contains(out, "  - grant access") {
+		t.Fatalf("render output missing '  - grant access'\n%s", out)
+	}
+}
+
+func TestRenderNotesAbsent(t *testing.T) {
+	plan := &engine.Plan{
+		Packages: []engine.PackagePlan{
+			{Name: "core"},
+		},
+	}
+	var buf bytes.Buffer
+	engine.Render(plan, &buf)
+	out := buf.String()
+	if strings.Contains(out, "manual follow-ups:") {
+		t.Fatalf("render output should NOT contain 'manual follow-ups:' when no notes\n%s", out)
+	}
+}
+
+func TestRenderNotesSkippedPackage(t *testing.T) {
+	// Notes must appear even when the package is only-skipped.
+	plan := &engine.Plan{
+		Packages: []engine.PackagePlan{
+			{Name: "win", Skipped: true, Detail: "os != windows", Notes: []string{"install manually on windows"}},
+		},
+	}
+	var buf bytes.Buffer
+	engine.Render(plan, &buf)
+	out := buf.String()
+	if !strings.Contains(out, "manual follow-ups:") {
+		t.Fatalf("render output missing 'manual follow-ups:' for skipped package with notes\n%s", out)
+	}
+	if !strings.Contains(out, "  - install manually on windows") {
+		t.Fatalf("render output missing note line for skipped package\n%s", out)
 	}
 }
 
