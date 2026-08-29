@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/schuettc/kempt/internal/manifest"
 )
@@ -62,12 +63,13 @@ func Select(m *manifest.Manifest, profile string, packages []string) ([]*manifes
 		}
 	}
 
-	return topoSort(m, inSet), nil
+	return topoSort(m, inSet)
 }
 
 // topoSort orders the selected set so each package follows all of its needs,
 // breaking ties alphabetically. Kahn's algorithm with a sorted ready set.
-func topoSort(m *manifest.Manifest, inSet map[string]bool) []*manifest.Package {
+// Returns an error if the dependency graph contains a cycle.
+func topoSort(m *manifest.Manifest, inSet map[string]bool) ([]*manifest.Package, error) {
 	indeg := map[string]int{}
 	for name := range inSet {
 		for _, need := range m.Packages[name].Needs {
@@ -88,6 +90,16 @@ func topoSort(m *manifest.Manifest, inSet map[string]bool) []*manifest.Package {
 			}
 		}
 		sort.Strings(ready)
+		if len(ready) == 0 {
+			var remaining []string
+			for name := range inSet {
+				if !placed[name] {
+					remaining = append(remaining, name)
+				}
+			}
+			sort.Strings(remaining)
+			return nil, fmt.Errorf("dependency cycle among: %s", strings.Join(remaining, ", "))
+		}
 		next := ready[0]
 		placed[next] = true
 		order = append(order, m.Packages[next])
@@ -103,5 +115,5 @@ func topoSort(m *manifest.Manifest, inSet map[string]bool) []*manifest.Package {
 			}
 		}
 	}
-	return order
+	return order, nil
 }

@@ -88,6 +88,24 @@ func TestSelectUnknownProfileError(t *testing.T) {
 	}
 }
 
+func TestSelectCyclicDependencyError(t *testing.T) {
+	// Parse WITHOUT Validate so the cycle is not caught before Select.
+	m, _ := manifest.Parse([]byte(`
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+needs = ["b"]
+[packages.b]
+description = "b"
+needs = ["a"]
+`))
+	_, err := Select(m, "", nil)
+	if err == nil {
+		t.Fatal("want error for cyclic dependency, got nil")
+	}
+}
+
 func TestSelectAlphabeticalTieBreak(t *testing.T) {
 	m := parse(t, `
 [kempt]
