@@ -51,7 +51,8 @@ func BuildPlan(ctx *machine.Context, pkgs []*manifest.Package) (*Plan, error) {
 	return p, nil
 }
 
-// Execute applies every OpChange step in plan order. On a step error it records
+// Execute applies every OpChange step in plan order. On success it marks the
+// StepResult Applied and prints "applied: <detail>". On a step error it records
 // the error in the StepResult, prints "! <pkg>: <detail>: <err>", skips the rest
 // of that package, and continues with the next package. It returns the number of
 // failed steps.
@@ -76,6 +77,8 @@ func Execute(ctx *machine.Context, p *Plan, out io.Writer) (failed int) {
 				failed++
 				break
 			}
+			sr.Applied = true
+			fmt.Fprintf(out, "applied: %s\n", sr.Delta.Detail)
 		}
 	}
 	return failed

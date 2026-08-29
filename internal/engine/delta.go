@@ -46,9 +46,10 @@ func HandlerFor(kind string) (Handler, bool) {
 
 // StepResult pairs a step with its inspected Delta and any apply-time error.
 type StepResult struct {
-	Step  manifest.Step
-	Delta Delta
-	Err   error // apply-time error, nil during plan
+	Step    manifest.Step
+	Delta   Delta
+	Err     error // apply-time error, nil during plan
+	Applied bool  // set by Execute when Apply ran without error
 }
 
 // PackagePlan is the plan for one package.
