@@ -76,9 +76,17 @@ type GitCloneStep struct {
 }
 
 type ServiceStep struct {
-	Label   string   `toml:"label"`
-	Program []string `toml:"program"`
-	Only    *Only    `toml:"only"`
+	Label            string            `toml:"label"`
+	Program          []string          `toml:"program"`
+	Env              map[string]string `toml:"env"`          // EnvironmentVariables
+	Stdout           string            `toml:"stdout"`       // StandardOutPath (~ expanded)
+	Stderr           string            `toml:"stderr"`       // StandardErrorPath (~ expanded)
+	KeepAlive        *bool             `toml:"keep-alive"`   // default true when nil
+	RunAtLoad        *bool             `toml:"run-at-load"`  // default true when nil
+	ProcessType      string            `toml:"process-type"` // e.g. "Interactive"
+	ThrottleInterval *int              `toml:"throttle-interval"`
+	SessionType      string            `toml:"session-type"` // LimitLoadToSessionType, e.g. "Aqua"
+	Only             *Only             `toml:"only"`
 }
 
 type SymlinkStep struct {

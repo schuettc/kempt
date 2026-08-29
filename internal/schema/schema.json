@@ -133,6 +133,17 @@
       "properties": {
         "label": { "type": "string" },
         "program": { "type": "array", "items": { "type": "string" } },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "stdout": { "type": "string" },
+        "stderr": { "type": "string" },
+        "keep-alive": { "type": "boolean" },
+        "run-at-load": { "type": "boolean" },
+        "process-type": { "type": "string" },
+        "throttle-interval": { "type": "integer" },
+        "session-type": { "type": "string" },
         "only": { "$ref": "#/$defs/only" }
       }
     },

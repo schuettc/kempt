@@ -3,6 +3,7 @@ package handlers
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/schuettc/kempt/internal/engine"
@@ -59,9 +60,117 @@ const goldenPlist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
 	"</plist>\n"
 
 func TestServiceRenderGolden(t *testing.T) {
-	got := renderPlist(goldenStep)
+	ctx := svcCtx(t, &run.FakeRunner{}, 501)
+	got := renderPlist(ctx, goldenStep)
 	if got != goldenPlist {
 		t.Fatalf("render mismatch\n--- got ---\n%q\n--- want ---\n%q", got, goldenPlist)
+	}
+}
+
+func boolPtr(b bool) *bool { return &b }
+func intPtr(i int) *int    { return &i }
+
+// fullStep exercises every optional field: env (2 keys, one with `&`, one with
+// `~`), stdout/stderr with `~`, ProcessType, ThrottleInterval, SessionType,
+// and KeepAlive=false (RunAtLoad left nil → defaults true).
+func fullStep() manifest.ServiceStep {
+	return manifest.ServiceStep{
+		Label:   "com.example.full",
+		Program: []string{"/usr/bin/foo", "--flag=a&b"},
+		Env: map[string]string{
+			"URL":   "/x?a=1&b=2",
+			"HOME2": "~/data",
+		},
+		Stdout:           "~/Library/Logs/foo.out",
+		Stderr:           "~/Library/Logs/foo.err",
+		ProcessType:      "Interactive",
+		ThrottleInterval: intPtr(30),
+		SessionType:      "Aqua",
+		KeepAlive:        boolPtr(false),
+	}
+}
+
+func fullPlist(ctx *machine.Context) string {
+	return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+		"<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n" +
+		"<plist version=\"1.0\">\n" +
+		"<dict>\n" +
+		"\t<key>EnvironmentVariables</key>\n" +
+		"\t<dict>\n" +
+		"\t\t<key>HOME2</key>\n" +
+		"\t\t<string>" + filepath.Join(ctx.Home, "data") + "</string>\n" +
+		"\t\t<key>URL</key>\n" +
+		"\t\t<string>/x?a=1&amp;b=2</string>\n" +
+		"\t</dict>\n" +
+		"\t<key>KeepAlive</key>\n" +
+		"\t<false/>\n" +
+		"\t<key>Label</key>\n" +
+		"\t<string>com.example.full</string>\n" +
+		"\t<key>LimitLoadToSessionType</key>\n" +
+		"\t<string>Aqua</string>\n" +
+		"\t<key>ProcessType</key>\n" +
+		"\t<string>Interactive</string>\n" +
+		"\t<key>ProgramArguments</key>\n" +
+		"\t<array>\n" +
+		"\t\t<string>/usr/bin/foo</string>\n" +
+		"\t\t<string>--flag=a&amp;b</string>\n" +
+		"\t</array>\n" +
+		"\t<key>RunAtLoad</key>\n" +
+		"\t<true/>\n" +
+		"\t<key>StandardErrorPath</key>\n" +
+		"\t<string>" + filepath.Join(ctx.Home, "Library/Logs/foo.err") + "</string>\n" +
+		"\t<key>StandardOutPath</key>\n" +
+		"\t<string>" + filepath.Join(ctx.Home, "Library/Logs/foo.out") + "</string>\n" +
+		"\t<key>ThrottleInterval</key>\n" +
+		"\t<integer>30</integer>\n" +
+		"</dict>\n" +
+		"</plist>\n"
+}
+
+func TestServiceRenderFullGolden(t *testing.T) {
+	ctx := svcCtx(t, &run.FakeRunner{}, 501)
+	got := renderPlist(ctx, fullStep())
+	want := fullPlist(ctx)
+	if got != want {
+		t.Fatalf("full render mismatch\n--- got ---\n%q\n--- want ---\n%q", got, want)
+	}
+}
+
+// A KeepAlive=false step must render <false/>; RunAtLoad nil stays <true/>.
+func TestServiceRenderKeepAliveFalse(t *testing.T) {
+	ctx := svcCtx(t, &run.FakeRunner{}, 501)
+	st := manifest.ServiceStep{
+		Label:     "com.example.ka",
+		Program:   []string{"/usr/bin/foo"},
+		KeepAlive: boolPtr(false),
+	}
+	got := renderPlist(ctx, st)
+	if !strings.Contains(got, "<key>KeepAlive</key>\n\t<false/>\n") {
+		t.Fatalf("KeepAlive not <false/>:\n%s", got)
+	}
+	if !strings.Contains(got, "<key>RunAtLoad</key>\n\t<true/>\n") {
+		t.Fatalf("RunAtLoad not defaulted <true/>:\n%s", got)
+	}
+}
+
+// Idempotency: after writing the rendered full plist, Inspect reports OpNoop.
+func TestServiceInspectFullNoop(t *testing.T) {
+	h := serviceHandler(t)
+	ctx := svcCtx(t, &run.FakeRunner{}, 501)
+	st := fullStep()
+	p := plistPath(ctx, st.Label)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(renderPlist(ctx, st)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d, err := h.Inspect(ctx, st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v (%q), want noop", d.Op, d.Detail)
 	}
 }
 
