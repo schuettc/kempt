@@ -8,9 +8,11 @@ import (
 
 // FakeRunner is a scripted Runner for use in tests.
 //
-// Key format for Responses:
-//   - For Run calls:      name + " " + strings.Join(args, " ")
-//   - For LookPath calls: "lookpath " + name
+// Key contract for Responses:
+//   - Run calls:      strings.TrimSpace(name + " " + strings.Join(args, " "))
+//     Zero-arg calls use the bare name (e.g. "git"); multi-arg calls use name
+//     and args joined by single spaces (e.g. "git status").
+//   - LookPath calls: "lookpath " + name
 //
 // A missing key in Responses causes Run to return an "unscripted command" error
 // and LookPath to return ("", exec.ErrNotFound). All invoked keys are appended
@@ -29,10 +31,7 @@ type Response struct {
 // Run records the call and returns the scripted response, or an error if the
 // key is not found in Responses.
 func (f *FakeRunner) Run(name string, args ...string) (string, error) {
-	key := name
-	if len(args) > 0 {
-		key = name + " " + strings.Join(args, " ")
-	}
+	key := strings.TrimSpace(name + " " + strings.Join(args, " "))
 	f.Calls = append(f.Calls, key)
 	resp, ok := f.Responses[key]
 	if !ok {

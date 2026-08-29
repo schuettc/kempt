@@ -10,6 +10,7 @@ func TestFakeRunnerScripted(t *testing.T) {
 	scriptedErr := errors.New("boom")
 	f := &FakeRunner{
 		Responses: map[string]Response{
+			"git":               {Stdout: "git-ok\n"},
 			"git status":        {Stdout: "clean\n"},
 			"git log --oneline": {Stdout: "abc123 msg\n"},
 			"git fail":          {Err: scriptedErr},
@@ -17,8 +18,20 @@ func TestFakeRunnerScripted(t *testing.T) {
 		},
 	}
 
+	// Zero-arg call uses the bare name as key.
+	out, err := f.Run("git")
+	if err != nil {
+		t.Fatalf("Run zero-arg: unexpected error: %v", err)
+	}
+	if out != "git-ok\n" {
+		t.Errorf("Run zero-arg stdout = %q; want %q", out, "git-ok\n")
+	}
+	if len(f.Calls) != 1 || f.Calls[0] != "git" {
+		t.Errorf("Run zero-arg Calls = %v; want [\"git\"]", f.Calls)
+	}
+
 	// Scripted key returns correct stdout.
-	out, err := f.Run("git", "status")
+	out, err = f.Run("git", "status")
 	if err != nil {
 		t.Fatalf("Run scripted: unexpected error: %v", err)
 	}
@@ -51,8 +64,8 @@ func TestFakeRunnerScripted(t *testing.T) {
 		t.Errorf("Run unscripted error = %q; want %q", err.Error(), wantMsg)
 	}
 
-	// Calls records all invocations in order.
-	wantCalls := []string{"git status", "git log --oneline", "git fail", "unknown cmd"}
+	// Calls records all invocations in order (including the zero-arg call).
+	wantCalls := []string{"git", "git status", "git log --oneline", "git fail", "unknown cmd"}
 	if len(f.Calls) != len(wantCalls) {
 		t.Fatalf("Calls length = %d; want %d; got %v", len(f.Calls), len(wantCalls), f.Calls)
 	}
@@ -79,7 +92,7 @@ func TestFakeRunnerScripted(t *testing.T) {
 
 	// Calls now includes lookpath entries.
 	wantLookpathCalls := []string{"lookpath git", "lookpath notfound"}
-	gotLookpathCalls := f.Calls[4:]
+	gotLookpathCalls := f.Calls[5:]
 	if len(gotLookpathCalls) != len(wantLookpathCalls) {
 		t.Fatalf("LookPath Calls length = %d; want %d; got %v", len(gotLookpathCalls), len(wantLookpathCalls), gotLookpathCalls)
 	}

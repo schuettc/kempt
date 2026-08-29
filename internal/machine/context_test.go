@@ -17,6 +17,7 @@ func TestExpand(t *testing.T) {
 		{"/abs/path", "/abs/path"},
 		{"rel/x", "/r/rel/x"},
 		{"foo", "/r/foo"},
+		{"~x", "/r/~x"}, // tilde not followed by slash is repo-relative, not home
 	}
 
 	for _, tc := range cases {
