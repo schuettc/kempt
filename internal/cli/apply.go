@@ -11,6 +11,7 @@ import (
 
 	"github.com/schuettc/kempt/internal/engine"
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
+	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 )
 
@@ -89,10 +90,25 @@ func runApply(args []string, out, errw io.Writer) error {
 		}
 	}
 
-	failed := engine.Execute(ctx, plan, out)
+	applied, failed := executeAndVerify(ctx, plan, out)
 
-	// Honesty check: re-inspect every step Execute claims it applied. If any is
-	// not now OpNoop, the machine did not actually converge — count it failed.
+	blocked := countBlocked(plan)
+	fmt.Fprintf(out, "%d applied, %d failed\n", applied, failed)
+	if blocked > 0 {
+		fmt.Fprintf(out, "%d blocked (unresolved)\n", blocked)
+	}
+
+	if failed > 0 {
+		return fmt.Errorf("%d step(s) failed", failed)
+	}
+	return nil
+}
+
+// executeAndVerify runs the plan then re-inspects every step Execute claims it
+// applied. If any is not now OpNoop, the machine did not actually converge and
+// the step is counted as failed. Returns (applied, failed).
+func executeAndVerify(ctx *machine.Context, plan *engine.Plan, out io.Writer) (int, int) {
+	failed := engine.Execute(ctx, plan, out)
 	applied := 0
 	for i := range plan.Packages {
 		pp := &plan.Packages[i]
@@ -118,17 +134,7 @@ func runApply(args []string, out, errw io.Writer) error {
 			}
 		}
 	}
-
-	blocked := countBlocked(plan)
-	fmt.Fprintf(out, "%d applied, %d failed\n", applied, failed)
-	if blocked > 0 {
-		fmt.Fprintf(out, "%d blocked (unresolved)\n", blocked)
-	}
-
-	if failed > 0 {
-		return fmt.Errorf("%d step(s) failed", failed)
-	}
-	return nil
+	return applied, failed
 }
 
 func countChanges(p *engine.Plan) int {
