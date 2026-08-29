@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/schuettc/kempt/internal/engine"
@@ -386,7 +387,8 @@ func TestInstallNpmMissing(t *testing.T) {
 	if err := h.Apply(ctx, step); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	want := []string{"npm install -g prettier"}
+	// LookPath guard in npmApply now precedes the install command.
+	want := []string{"lookpath npm", "npm install -g prettier"}
 	if !reflect.DeepEqual(fake.Calls, want) {
 		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
 	}
@@ -465,7 +467,8 @@ func TestInstallPiMissing(t *testing.T) {
 	if err := h.Apply(ctx, step); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	want := []string{"pi install npm:eslint"}
+	// LookPath guard in piApply now precedes the install command.
+	want := []string{"lookpath pi", "pi install npm:eslint"}
 	if !reflect.DeepEqual(fake.Calls, want) {
 		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
 	}
@@ -524,7 +527,8 @@ func TestInstallCombinedBrewNpm(t *testing.T) {
 	if err := h.Apply(ctx, step); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	wantCalls := []string{"brew install fd", "npm install -g prettier"}
+	// LookPath guard in npmApply now precedes the install command.
+	wantCalls := []string{"brew install fd", "lookpath npm", "npm install -g prettier"}
 	if !reflect.DeepEqual(fake.Calls, wantCalls) {
 		t.Fatalf("apply calls = %v; want %v", fake.Calls, wantCalls)
 	}
@@ -548,5 +552,95 @@ func TestInstallApplySkipsEmptyGroups(t *testing.T) {
 	want := []string{"brew install jq"}
 	if !reflect.DeepEqual(fake.Calls, want) {
 		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
+	}
+}
+
+// TestInstallCombinedBrewChangeNpmAbsent verifies finding #1: when brew has
+// changes and npm is absent, Inspect returns OpChange (brew segment) with npm
+// blocked in the Detail; Apply issues the brew install and does NOT error on
+// npm, and no npm commands are recorded.
+func TestInstallCombinedBrewChangeNpmAbsent(t *testing.T) {
+	resp := brewFound("jq\n", "", "") // fd missing → brew OpChange
+	resp["brew install fd"] = run.Response{}
+	// npm absent: no "lookpath npm" response → LookPath returns error
+	fake := &run.FakeRunner{Responses: resp}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{
+		Brew: &manifest.BrewSpec{Formulas: []string{"jq", "fd"}},
+		Npm:  []string{"prettier"},
+	}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	// Combined: brew=OpChange, npm=OpBlocked → overall OpChange.
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+
+	fake.Calls = nil
+	if err := h.Apply(ctx, step); err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	// LookPath guard fires but returns nil; no npm ls or npm install must run.
+	for _, c := range fake.Calls {
+		if c == npmInvCmd || strings.HasPrefix(c, "npm install") {
+			t.Fatalf("unexpected npm inventory/install call after brew-only apply: %q", c)
+		}
+	}
+	if len(fake.Calls) == 0 {
+		t.Fatal("expected brew install call but got none")
+	}
+}
+
+// TestInstallPiHeaderTolerated verifies finding #2: section-header lines in
+// "pi list" output (e.g. "User packages:") are silently skipped so they are
+// not mistaken for package identifiers.
+func TestInstallPiHeaderTolerated(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi": {Stdout: "/usr/bin/pi"},
+		// Fixture with a real-world section header.
+		"pi list": {Stdout: "User packages:\n  npm:typescript@5.0.0\n  /Users/me/local-tool\n"},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"npm:typescript", "/Users/me/local-tool"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop (header must be ignored)", d.Op)
+	}
+	if d.Detail != "pi: 2 present" {
+		t.Fatalf("detail = %q; want \"pi: 2 present\"", d.Detail)
+	}
+}
+
+// TestInstallNpmScopedPackage verifies finding #3: the npm inventory parser
+// preserves @scope/name for scoped packages (the entire segment after
+// node_modules/, NOT just the basename), so a scoped desired entry matches.
+func TestInstallNpmScopedPackage(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		// Scoped package path: the name is the two-segment @scope/pkg part.
+		npmInvCmd: {Stdout: "/usr/lib\n/usr/lib/node_modules/@earendil-works/pi-coding-agent\n"},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"@earendil-works/pi-coding-agent"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop (scoped package must be recognized)", d.Op)
+	}
+	if d.Detail != "npm: 1 present" {
+		t.Fatalf("detail = %q; want \"npm: 1 present\"", d.Detail)
 	}
 }

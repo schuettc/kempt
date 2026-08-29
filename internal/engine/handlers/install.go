@@ -158,6 +158,9 @@ func npmInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 // npmApply installs the missing global packages in one command, then
 // invalidates the npm inventory cache key.
 func npmApply(ctx *machine.Context, desired []string) error {
+	if _, err := ctx.Runner.LookPath("npm"); err != nil {
+		return nil // absent → blocked was already signalled in Inspect Detail
+	}
 	installed, err := npmInventory(ctx)
 	if err != nil {
 		return err
@@ -217,6 +220,9 @@ func piInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 // piApply installs each missing pi package with its own command, then
 // invalidates the pi inventory cache key.
 func piApply(ctx *machine.Context, desired []string) error {
+	if _, err := ctx.Runner.LookPath("pi"); err != nil {
+		return nil // absent → blocked was already signalled in Inspect Detail
+	}
 	present, err := piInventory(ctx)
 	if err != nil {
 		return err
@@ -246,7 +252,8 @@ func piInventory(ctx *machine.Context) (map[string]struct{}, error) {
 	set := map[string]struct{}{}
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
-		if line == "" {
+		// Skip blank lines and section-header lines (e.g. "User packages:").
+		if line == "" || strings.HasSuffix(line, ":") {
 			continue
 		}
 		set[reducePiEntry(line)] = struct{}{}
