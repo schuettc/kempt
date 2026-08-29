@@ -45,7 +45,7 @@ only = { os = "darwin" }
 
 [profiles.developer]
 description = "full toolchain: terminal, editors, agents"
-packages = ["core", "terminal", "nvim", "claude", "muster"]
+packages = ["core", "terminal", "muster"]
 
 [profiles.minimal]
 description = "just a pleasant shell"
