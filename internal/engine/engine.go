@@ -84,6 +84,40 @@ func Execute(ctx *machine.Context, p *Plan, out io.Writer) (failed int) {
 	return failed
 }
 
+// FilterByClass returns a copy of p containing only OpChange steps whose
+// Step.Class() == class. Packages left with zero steps are dropped, and skipped
+// packages are omitted. The original plan and its steps are never mutated. It
+// is used by refresh to apply files-class changes without touching software.
+func FilterByClass(p *Plan, class manifest.Class) *Plan {
+	out := &Plan{}
+	for i := range p.Packages {
+		pp := &p.Packages[i]
+		if pp.Skipped {
+			continue
+		}
+		var steps []StepResult
+		for _, sr := range pp.Steps {
+			if sr.Delta.Op != OpChange {
+				continue
+			}
+			if sr.Step.Class() != class {
+				continue
+			}
+			steps = append(steps, sr)
+		}
+		if len(steps) == 0 {
+			continue
+		}
+		out.Packages = append(out.Packages, PackagePlan{
+			Name:    pp.Name,
+			Skipped: pp.Skipped,
+			Detail:  pp.Detail,
+			Steps:   steps,
+		})
+	}
+	return out
+}
+
 // OnlySkip reports whether an only-clause excludes the machine context.
 // It returns a short human-readable reason ("os != windows") and true when
 // the step/package should be skipped, or ("", false) when it should run.

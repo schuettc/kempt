@@ -38,7 +38,13 @@ func runStatus(args []string, out, errw io.Writer) error {
 		return nil
 	}
 
-	// Build the body from segments.
+	fmt.Fprintln(out, formatStatus(st))
+	return nil
+}
+
+// formatStatus renders a cached Status as the single human summary line (no
+// trailing newline) shared by `kempt status` and `kempt refresh`.
+func formatStatus(st *state.Status) string {
 	var parts []string
 	if st.Behind > 0 {
 		parts = append(parts, fmt.Sprintf("%d behind", st.Behind))
@@ -59,9 +65,7 @@ func runStatus(args []string, out, errw io.Writer) error {
 	}
 
 	if body == "" {
-		fmt.Fprintln(out, "kempt: up to date")
-	} else {
-		fmt.Fprintf(out, "kempt: %s · kempt update\n", body)
+		return "kempt: up to date"
 	}
-	return nil
+	return fmt.Sprintf("kempt: %s · kempt update", body)
 }
