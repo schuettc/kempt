@@ -73,6 +73,14 @@ type GithubReleaseStep struct {
 	Only  *Only  `toml:"only"`
 }
 
+type DownloadStep struct {
+	Site    string `toml:"site"`    // e.g. "tackle.tools"
+	Tool    string `toml:"tool"`    // e.g. "proj"
+	Version string `toml:"version"` // "latest" (default when empty) or pinned "1.4.0"
+	Bin     string `toml:"bin"`     // binary inside tarball + installed name
+	Only    *Only  `toml:"only"`
+}
+
 type GitCloneStep struct {
 	Repo string `toml:"repo"`
 	To   string `toml:"to"`
@@ -144,6 +152,9 @@ func (InstallStep) Class() Class { return ClassSoftware }
 
 func (GithubReleaseStep) Kind() string { return "github-release" }
 func (GithubReleaseStep) Class() Class { return ClassSoftware }
+
+func (DownloadStep) Kind() string { return "download" }
+func (DownloadStep) Class() Class { return ClassSoftware }
 
 func (GitCloneStep) Kind() string { return "git-clone" }
 func (GitCloneStep) Class() Class { return ClassSoftware }

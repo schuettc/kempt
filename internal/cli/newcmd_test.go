@@ -74,7 +74,7 @@ func TestNewDefaultsToCwd(t *testing.T) {
 }
 
 // TestEmbeddedTemplateCoversAllKinds guards that the exemplar exercises every
-// one of the 9 primitive kinds, so it stays complete as kinds evolve.
+// one of the 10 primitive kinds, so it stays complete as kinds evolve.
 func TestEmbeddedTemplateCoversAllKinds(t *testing.T) {
 	m, findings := manifest.Parse(kemptTemplate)
 	if m == nil {
@@ -87,7 +87,7 @@ func TestEmbeddedTemplateCoversAllKinds(t *testing.T) {
 		}
 	}
 	want := []string{
-		"install", "symlink", "github-release", "git-clone",
+		"install", "symlink", "github-release", "download", "git-clone",
 		"service", "json-merge", "toml-merge", "line-in-file", "verify",
 	}
 	for _, k := range want {

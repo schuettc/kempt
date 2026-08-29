@@ -24,6 +24,7 @@ type rawPackage struct {
 	Notes         []string            `toml:"notes"`
 	Install       []InstallStep       `toml:"install"`
 	GithubRelease []GithubReleaseStep `toml:"github-release"`
+	Download      []DownloadStep      `toml:"download"`
 	GitClone      []GitCloneStep      `toml:"git-clone"`
 	Service       []ServiceStep       `toml:"service"`
 	Symlink       []SymlinkStep       `toml:"symlink"`
@@ -107,6 +108,8 @@ func interleave(md toml.MetaData, pkg string, rp rawPackage) []Step {
 			return rp.Install[i]
 		case "github-release":
 			return rp.GithubRelease[i]
+		case "download":
+			return rp.Download[i]
 		case "git-clone":
 			return rp.GitClone[i]
 		case "service":
@@ -124,9 +127,9 @@ func interleave(md toml.MetaData, pkg string, rp rawPackage) []Step {
 		}
 		return nil
 	}
-	kinds := map[string]bool{"install": true, "github-release": true, "git-clone": true,
-		"service": true, "symlink": true, "json-merge": true, "toml-merge": true,
-		"line-in-file": true, "verify": true}
+	kinds := map[string]bool{"install": true, "github-release": true, "download": true,
+		"git-clone": true, "service": true, "symlink": true, "json-merge": true,
+		"toml-merge": true, "line-in-file": true, "verify": true}
 	var steps []Step
 	for _, key := range md.Keys() {
 		parts := []string(key)

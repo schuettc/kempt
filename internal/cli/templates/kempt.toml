@@ -5,7 +5,7 @@
 # `kempt init <this-repo-url>` on a new machine to apply it.
 #
 # A config is a set of *packages*. Each package is a named bundle of *steps*.
-# There are nine step kinds; this file exercises all of them so you can copy
+# There are ten step kinds; this file exercises all of them so you can copy
 # the shapes you need. Run `kempt schema` for the full reference.
 
 [kempt]
@@ -59,6 +59,15 @@ repo = "sharkdp/fd"
 asset = "fd-v9.0.0-aarch64-apple-darwin.tar.gz"
 bin = "fd"
 only = { os = "darwin", arch = "arm64" }
+
+# download: fetch a binary from a domain distribution. kempt resolves the
+# version ("latest" by default, or pin one), downloads
+# https://<site>/dl/<tool>/<ver>/<tool>_<os>_<arch>.tar.gz, verifies its
+# .sha256 sidecar, and installs `bin` into ~/.local/bin.
+[[packages.tools.download]]
+site = "example.tools"
+tool = "demo"
+bin = "demo"
 
 # git-clone: clone a repository to a path. `ref` pins a branch, tag, or commit.
 [[packages.tools.git-clone]]

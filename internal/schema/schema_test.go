@@ -53,7 +53,7 @@ func packageProperties(t *testing.T) map[string]any {
 
 func TestPackageStepKindsPresent(t *testing.T) {
 	props := packageProperties(t)
-	kinds := []string{"install", "github-release", "git-clone", "service", "symlink", "json-merge", "toml-merge", "line-in-file", "verify"}
+	kinds := []string{"install", "github-release", "download", "git-clone", "service", "symlink", "json-merge", "toml-merge", "line-in-file", "verify"}
 	for _, k := range kinds {
 		if _, ok := props[k]; !ok {
 			t.Errorf("package schema missing step kind property %q", k)

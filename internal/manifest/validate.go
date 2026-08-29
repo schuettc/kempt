@@ -165,6 +165,8 @@ func stepOnly(s Step) *Only {
 		return v.Only
 	case GithubReleaseStep:
 		return v.Only
+	case DownloadStep:
+		return v.Only
 	case GitCloneStep:
 		return v.Only
 	case ServiceStep:
@@ -238,6 +240,10 @@ func missingFields(s Step) []string {
 	case GithubReleaseStep:
 		req(v.Repo != "", "repo")
 		req(v.Asset != "", "asset")
+		req(v.Bin != "", "bin")
+	case DownloadStep:
+		req(v.Site != "", "site")
+		req(v.Tool != "", "tool")
 		req(v.Bin != "", "bin")
 	case GitCloneStep:
 		req(v.Repo != "", "repo")

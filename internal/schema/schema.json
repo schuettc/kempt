@@ -63,6 +63,10 @@
           "type": "array",
           "items": { "$ref": "#/$defs/githubReleaseStep" }
         },
+        "download": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/downloadStep" }
+        },
         "git-clone": {
           "type": "array",
           "items": { "$ref": "#/$defs/gitCloneStep" }
@@ -119,6 +123,17 @@
       "properties": {
         "repo": { "type": "string" },
         "asset": { "type": "string" },
+        "bin": { "type": "string" },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "downloadStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "site": { "type": "string" },
+        "tool": { "type": "string" },
+        "version": { "type": "string" },
         "bin": { "type": "string" },
         "only": { "$ref": "#/$defs/only" }
       }
