@@ -90,6 +90,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.moveCursor(1), nil
 	case tea.KeySpace:
 		if m.mode == modePackages && m.cursor < len(m.items) {
+			newSel := make(map[string]bool, len(m.selected))
+			for k, v := range m.selected {
+				newSel[k] = v
+			}
+			m.selected = newSel
 			name := m.items[m.cursor].Name
 			m.selected[name] = !m.selected[name]
 		}
@@ -126,6 +131,11 @@ func (m model) enter() (tea.Model, tea.Cmd) {
 		if m.cursor < len(m.profiles) {
 			p := m.profiles[m.cursor]
 			m.profile = p.Name
+			newSel := make(map[string]bool, len(m.selected))
+			for k, v := range m.selected {
+				newSel[k] = v
+			}
+			m.selected = newSel
 			for _, name := range p.Packages {
 				m.selected[name] = true
 			}
@@ -173,13 +183,13 @@ func (m model) View() string {
 	if m.mode == modeProfile {
 		b = append(b, titleStyle.Render("Choose a profile"))
 		for i, p := range m.profiles {
-			b = append(b, m.renderRow(i, "", p.Name, p.Description, false))
+			b = append(b, m.renderRow(i, p.Name, p.Description, false))
 		}
 		b = append(b, helpStyle.Render("↑/↓ move · enter choose · q quit"))
 	} else {
 		b = append(b, titleStyle.Render("Select packages"))
 		for i, it := range m.items {
-			b = append(b, m.renderRow(i, "", it.Name, it.Description, m.selected[it.Name]))
+			b = append(b, m.renderRow(i, it.Name, it.Description, m.selected[it.Name]))
 		}
 		b = append(b, helpStyle.Render("space toggle · enter confirm · q quit"))
 	}
@@ -187,7 +197,7 @@ func (m model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, b...) + "\n"
 }
 
-func (m model) renderRow(i int, _ string, name, desc string, checked bool) string {
+func (m model) renderRow(i int, name, desc string, checked bool) string {
 	cursor := "  "
 	if i == m.cursor {
 		cursor = cursorStyle.Render("❯ ")
