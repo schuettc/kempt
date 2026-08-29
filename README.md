@@ -2,13 +2,21 @@
 
 kempt is declarative machine setup you can read before you run: a single manifest describes the software and files a machine should have, and kempt shows you exactly what it would change before it changes anything. The manifest is `kempt.toml`; its schema and primitives are specified in [docs/spec.md](docs/spec.md).
 
-## Install from source
+## Getting started
+
+```sh
+curl -fsSL https://kempt.tools/install.sh | sh
+```
+
+The installer downloads the latest release for your platform, verifies its
+checksum, and drops the `kempt` binary in `~/.local/bin` (override with
+`KEMPT_INSTALL_DIR`). To build from source instead:
 
 ```sh
 go install ./cmd/kempt
 ```
 
-## Getting started
+Then point kempt at your config repo:
 
 ```sh
 kempt init <repo-url>
@@ -56,9 +64,28 @@ kempt has the following working commands:
   ```sh
   kempt version
   ```
+- **`kempt schema`** — print the JSON Schema for `kempt.toml` (point your
+  editor at it for completion and validation).
+  ```sh
+  kempt schema > kempt.schema.json
+  ```
+- **`kempt new`** — scaffold a new kempt config repo in the given directory
+  (defaults to the current one; refuses to overwrite an existing `kempt.toml`).
+  ```sh
+  kempt new my-config
+  ```
+- **`kempt dump`** — inspect the current machine and suggest a manifest
+  (read-only; never touches anything). Pass `-repo` to detect dotfile symlinks.
+  ```sh
+  kempt dump > kempt.toml
+  ```
 
-`plan`, `apply`, and `verify` accept `-profile` and `-packages` to narrow the selection.
+`plan`, `apply`, and `verify` accept `-profile` and `-packages` to narrow the
+selection. `plan` also accepts `-os` and `-arch` to dry-plan for another
+platform (e.g. `kempt plan -manifest kempt.toml -os linux -arch arm64`) without
+inspecting the local machine's real OS/arch.
 
 ## Coming next
 
-Dotfiles-as-reference-config and the [kempt.tools](https://kempt.tools) site land next.
+Dotfiles-as-reference-config and the [kempt.tools](https://kempt.tools) site
+land next.

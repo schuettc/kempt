@@ -1,0 +1,73 @@
+name: release
+
+# Merge to main = release. The VERSION file is the knob: when a merge lands on
+# main and no tag v<VERSION> exists yet, this workflow creates the GitHub
+# release (auto-generated notes) and attaches cross-compiled binaries
+# (cgo-free: darwin/linux × arm64/amd64), each with a sha256 checksum. Every
+# binary is stamped with this release's version/commit via -ldflags -X into
+# internal/version. A merge that doesn't bump VERSION releases nothing, so a
+# re-push at the same VERSION is a no-op.
+#
+# kempt is a single, UNSIGNED binary — there is no macOS signing/notarization
+# and nothing that needs a macOS runner, so the whole job cross-compiles from
+# ubuntu-latest.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve tag
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v$(tr -d ' \n' < VERSION)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "VERSION $tag already released — nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-go@v5
+        if: steps.rel.outputs.skip == 'false'
+        with:
+          go-version-file: go.mod
+      - name: Build and package all targets
+        if: steps.rel.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          tag="${{ steps.rel.outputs.tag }}"
+          version="${tag#v}"
+          commit="$(git rev-parse --short HEAD)"
+          ldflags="-s -w -X github.com/schuettc/kempt/internal/version.version=${version} -X github.com/schuettc/kempt/internal/version.commit=${commit}"
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            goos="${target%/*}"; goarch="${target#*/}"
+            out="kempt_${goos}_${goarch}"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -ldflags "$ldflags" -o "dist/${out}/kempt" ./cmd/kempt
+            tar -C "dist/${out}" -czf "dist/${out}.tar.gz" kempt
+          done
+          (cd dist && (shasum -a 256 ./*.tar.gz 2>/dev/null || sha256sum ./*.tar.gz) > checksums.txt)
+      - name: Create the release
+        if: steps.rel.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.rel.outputs.tag }}" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "kempt ${{ steps.rel.outputs.tag }}" --generate-notes
+      - name: Upload assets
+        if: steps.rel.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.rel.outputs.tag }}" dist/*.tar.gz dist/checksums.txt --clobber --repo "$GITHUB_REPOSITORY"
