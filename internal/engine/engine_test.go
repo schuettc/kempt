@@ -32,6 +32,12 @@ needs = ["a"]
   to = "b"
   only = { os = "windows" }
 
+[packages.gc]
+description = "git-clone fallback coverage"
+  [[packages.gc.git-clone]]
+  repo = "https://github.com/example/repo"
+  to = "~/src/repo"
+
 [packages.win]
 description = "win only"
 only = { os = "windows" }
@@ -80,11 +86,15 @@ func TestBuildPlanOrderAndOps(t *testing.T) {
 	ctx := buildCtx(t)
 	plan := buildPlan(t, ctx)
 
-	if len(plan.Packages) != 3 {
-		t.Fatalf("packages = %d, want 3", len(plan.Packages))
+	if len(plan.Packages) != 4 {
+		t.Fatalf("packages = %d, want 4", len(plan.Packages))
 	}
-	if plan.Packages[0].Name != "a" || plan.Packages[1].Name != "b" || plan.Packages[2].Name != "win" {
-		t.Fatalf("order = %v", []string{plan.Packages[0].Name, plan.Packages[1].Name, plan.Packages[2].Name})
+	names := []string{plan.Packages[0].Name, plan.Packages[1].Name, plan.Packages[2].Name, plan.Packages[3].Name}
+	wantNames := []string{"a", "b", "gc", "win"}
+	for i, w := range wantNames {
+		if names[i] != w {
+			t.Fatalf("order = %v; want %v", names, wantNames)
+		}
 	}
 
 	// a: single symlink change
@@ -92,7 +102,7 @@ func TestBuildPlanOrderAndOps(t *testing.T) {
 		t.Fatalf("a step op = %v, want change", got)
 	}
 
-	// b: install -> blocked (no handler), symlink -> skipped by only
+	// b: install -> blocked (brew not found via empty FakeRunner), symlink -> skipped by only
 	b := plan.Packages[1]
 	if b.Steps[0].Delta.Op != engine.OpBlocked {
 		t.Fatalf("b install op = %v, want blocked", b.Steps[0].Delta.Op)
@@ -104,8 +114,19 @@ func TestBuildPlanOrderAndOps(t *testing.T) {
 		t.Fatalf("b symlink op = %v, want skip", b.Steps[1].Delta.Op)
 	}
 
+	// gc: git-clone step has no registered handler → engine fallback OpBlocked.
+	// TODO(Task 6): this assertion moves to a different kind once git-clone is
+	// implemented; re-point it at github-release or verify then.
+	gc := plan.Packages[2]
+	if gc.Steps[0].Delta.Op != engine.OpBlocked {
+		t.Fatalf("gc git-clone op = %v, want blocked", gc.Steps[0].Delta.Op)
+	}
+	if gc.Steps[0].Delta.Detail != "handler not implemented yet (phase 1b)" {
+		t.Fatalf("gc git-clone detail = %q", gc.Steps[0].Delta.Detail)
+	}
+
 	// win: whole package skipped
-	if !plan.Packages[2].Skipped {
+	if !plan.Packages[3].Skipped {
 		t.Fatal("win package should be skipped")
 	}
 }
@@ -122,8 +143,10 @@ func TestRenderGolden(t *testing.T) {
 package b
   ! install (brew not found)
   - symlink (skipped: os != windows)
+package gc
+  ! handler not implemented yet (phase 1b)
 package win (skipped: os != windows)
-1 changes, 0 ok, 1 skipped, 1 blocked
+1 changes, 0 ok, 1 skipped, 2 blocked
 software changes: 0, file changes: 1
 `, ctx.Expand("a"), ctx.Expand("src/a"))
 

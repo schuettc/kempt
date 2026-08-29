@@ -118,6 +118,73 @@ func TestInstallInspectMissingFormulasOnly(t *testing.T) {
 	}
 }
 
+func TestInstallInspectMissingCasksOnly(t *testing.T) {
+	// No formulas missing; only casks absent — Detail must not have a stray semicolon.
+	fake := &run.FakeRunner{Responses: brewFound("jq\n", "", "")}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Brew: &manifest.BrewSpec{
+		Formulas: []string{"jq"},
+		Casks:    []string{"ghostty"},
+	}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+	want := "brew install: casks: ghostty"
+	if d.Detail != want {
+		t.Fatalf("detail = %q; want %q", d.Detail, want)
+	}
+}
+
+func TestInstallInspectMissingTapsOnly(t *testing.T) {
+	// No formulas or casks missing; only taps absent.
+	fake := &run.FakeRunner{Responses: brewFound("jq\n", "ghostty\n", "")}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Brew: &manifest.BrewSpec{
+		Formulas: []string{"jq"},
+		Casks:    []string{"ghostty"},
+		Taps:     []string{"x/y"},
+	}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+	want := "brew install: taps: x/y"
+	if d.Detail != want {
+		t.Fatalf("detail = %q; want %q", d.Detail, want)
+	}
+}
+
+func TestInstallWingetOnWindowsBlocked(t *testing.T) {
+	// Windows + winget content → OpBlocked (winget not implemented this phase).
+	fake := &run.FakeRunner{Responses: map[string]run.Response{}}
+	ctx := installCtx(t, "windows", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Winget: []string{"Microsoft.WindowsTerminal"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpBlocked {
+		t.Fatalf("op = %v; want OpBlocked", d.Op)
+	}
+	want := "install (backend winget not implemented in this phase)"
+	if d.Detail != want {
+		t.Fatalf("detail = %q; want %q", d.Detail, want)
+	}
+}
+
 func TestInstallInspectMemoizesCache(t *testing.T) {
 	fake := &run.FakeRunner{Responses: brewFound("jq\n", "", "")}
 	ctx := installCtx(t, "darwin", fake)

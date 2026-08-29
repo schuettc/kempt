@@ -120,15 +120,20 @@ func brewInspect(ctx *machine.Context, spec *manifest.BrewSpec) (engine.Delta, e
 		return engine.Delta{Op: engine.OpNoop, Detail: fmt.Sprintf("brew: %d present", total)}, nil
 	}
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "brew install: %s", strings.Join(missF, " "))
+	// Build labeled segments; formulas carry no label, casks/taps do. Join
+	// only non-empty segments so casks-only yields "brew install: casks: X"
+	// rather than "brew install: ; casks: X".
+	var segments []string
+	if len(missF) > 0 {
+		segments = append(segments, strings.Join(missF, " "))
+	}
 	if len(missC) > 0 {
-		fmt.Fprintf(&b, "; casks: %s", strings.Join(missC, " "))
+		segments = append(segments, "casks: "+strings.Join(missC, " "))
 	}
 	if len(missT) > 0 {
-		fmt.Fprintf(&b, "; taps: %s", strings.Join(missT, " "))
+		segments = append(segments, "taps: "+strings.Join(missT, " "))
 	}
-	return engine.Delta{Op: engine.OpChange, Detail: b.String()}, nil
+	return engine.Delta{Op: engine.OpChange, Detail: "brew install: " + strings.Join(segments, "; ")}, nil
 }
 
 // brewApply installs the missing taps, formulas, and casks in that order,
