@@ -67,8 +67,16 @@ func runVerify(args []string, out, errw io.Writer) error {
 
 	var passed, failed, total int
 	for _, pkg := range selected {
+		// Package-level only filtering: skip if the machine context doesn't match.
+		if _, skip := engine.OnlySkip(ctx, pkg.Only); skip {
+			continue
+		}
 		for _, step := range pkg.Steps {
 			if step.Kind() != "verify" {
+				continue
+			}
+			// Step-level only filtering.
+			if _, skip := engine.OnlySkip(ctx, engine.StepOnly(step)); skip {
 				continue
 			}
 			total++

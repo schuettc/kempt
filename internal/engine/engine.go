@@ -81,6 +81,21 @@ func Execute(ctx *machine.Context, p *Plan, out io.Writer) (failed int) {
 	return failed
 }
 
+// OnlySkip reports whether an only-clause excludes the machine context.
+// It returns a short human-readable reason ("os != windows") and true when
+// the step/package should be skipped, or ("", false) when it should run.
+// Callers other than BuildPlan (e.g. cli.verify) must use this function
+// instead of duplicating the matching logic.
+func OnlySkip(ctx *machine.Context, only *manifest.Only) (reason string, skip bool) {
+	return skipReason(ctx, only)
+}
+
+// StepOnly extracts the only-clause from a step, returning nil when the step
+// type has no only-clause or when the type is unknown.
+func StepOnly(s manifest.Step) *manifest.Only {
+	return stepOnly(s)
+}
+
 // skipReason reports whether an only-clause excludes the context, and if so a
 // short reason naming the required value that did not match.
 func skipReason(ctx *machine.Context, only *manifest.Only) (string, bool) {

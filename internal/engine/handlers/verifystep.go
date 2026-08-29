@@ -18,6 +18,11 @@ func init() { engine.RegisterHandler(verifyStepHandler{}) }
 // engine's Execute (which walks OpChange only) never applies a verify step.
 // verify degrades rather than hard-erroring: resolver and runner failures
 // become OpBlocked details, keeping `kempt verify` usable offline.
+//
+// version-current Command field: the value is split on whitespace
+// (strings.Fields) where the first token is the binary and the remainder are
+// arguments. Quoted arguments and shell metacharacters are NOT supported;
+// use a wrapper script for complex invocations.
 type verifyStepHandler struct{}
 
 func (verifyStepHandler) Kind() string { return "verify" }
