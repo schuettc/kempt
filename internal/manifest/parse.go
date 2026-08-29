@@ -32,8 +32,13 @@ type rawPackage struct {
 }
 
 // isFreeform reports whether an undecoded key falls within the free-form
-// `merge` subtree of a json-merge step (segments `json-merge` then `merge`).
+// `merge` subtree of a json-merge step. The key must start with "packages"
+// and contain adjacent segments `json-merge` then `merge`, so unrelated
+// paths like a top-level `json-merge.merge` are not suppressed.
 func isFreeform(key toml.Key) bool {
+	if len(key) == 0 || key[0] != "packages" {
+		return false
+	}
 	for i := 0; i+1 < len(key); i++ {
 		if key[i] == "json-merge" && key[i+1] == "merge" {
 			return true
@@ -78,37 +83,46 @@ func Parse(src []byte) (*Manifest, []Finding) {
 	return m, findings
 }
 
-// interleave produces the ordered step slice for a package.
-//
-// NAIVE IMPLEMENTATION (Task 2): steps are appended in a fixed kind order
-// (install, github-release, git-clone, service, symlink, json-merge,
-// line-in-file, verify) rather than the order they appear in the manifest.
-// Document-order interleaving is Task 3's job.
-func interleave(_ toml.MetaData, _ string, rp rawPackage) []Step {
+// interleave returns the package's steps in source order. md.Keys() lists
+// every defined key in document order; each [[packages.<pkg>.<kind>]] table
+// re-lists the key "packages.<pkg>.<kind>" once per element, in order. Walk
+// those occurrences and pop from the corresponding typed slice.
+func interleave(md toml.MetaData, pkg string, rp rawPackage) []Step {
+	idx := map[string]int{}
+	pop := func(kind string) Step {
+		i := idx[kind]
+		idx[kind] = i + 1
+		switch kind {
+		case "install":
+			return rp.Install[i]
+		case "github-release":
+			return rp.GithubRelease[i]
+		case "git-clone":
+			return rp.GitClone[i]
+		case "service":
+			return rp.Service[i]
+		case "symlink":
+			return rp.Symlink[i]
+		case "json-merge":
+			return rp.JSONMerge[i]
+		case "line-in-file":
+			return rp.LineInFile[i]
+		case "verify":
+			return rp.Verify[i]
+		}
+		return nil
+	}
+	kinds := map[string]bool{"install": true, "github-release": true, "git-clone": true,
+		"service": true, "symlink": true, "json-merge": true, "line-in-file": true, "verify": true}
 	var steps []Step
-	for _, s := range rp.Install {
-		steps = append(steps, s)
-	}
-	for _, s := range rp.GithubRelease {
-		steps = append(steps, s)
-	}
-	for _, s := range rp.GitClone {
-		steps = append(steps, s)
-	}
-	for _, s := range rp.Service {
-		steps = append(steps, s)
-	}
-	for _, s := range rp.Symlink {
-		steps = append(steps, s)
-	}
-	for _, s := range rp.JSONMerge {
-		steps = append(steps, s)
-	}
-	for _, s := range rp.LineInFile {
-		steps = append(steps, s)
-	}
-	for _, s := range rp.Verify {
-		steps = append(steps, s)
+	for _, key := range md.Keys() {
+		parts := []string(key)
+		// BurntSushi emits the array key once per [[element]], but it also emits
+		// child keys (e.g. packages.x.symlink.from) — the len==3 guard filters those.
+		if len(parts) != 3 || parts[0] != "packages" || parts[1] != pkg || !kinds[parts[2]] {
+			continue
+		}
+		steps = append(steps, pop(parts[2]))
 	}
 	return steps
 }
