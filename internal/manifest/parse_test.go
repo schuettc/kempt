@@ -91,6 +91,11 @@ func TestIsFreeform(t *testing.T) {
 			key:  toml.Key{"json-merge", "merge"},
 			want: false,
 		},
+		{
+			name: "unrelated package key is not suppressed",
+			key:  toml.Key{"packages", "muster", "symlink", "from"},
+			want: false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -87,6 +87,12 @@ func Parse(src []byte) (*Manifest, []Finding) {
 // every defined key in document order; each [[packages.<pkg>.<kind>]] table
 // re-lists the key "packages.<pkg>.<kind>" once per element, in order. Walk
 // those occurrences and pop from the corresponding typed slice.
+//
+// Bounds invariant: the index i inside pop is always < len(slice). BurntSushi
+// records exactly one md.Keys() entry per decoded array-of-tables element in
+// the same decode pass, so the occurrence count for each kind equals the
+// length of the corresponding typed slice in rawPackage. No additional bounds
+// guard is needed.
 func interleave(md toml.MetaData, pkg string, rp rawPackage) []Step {
 	idx := map[string]int{}
 	pop := func(kind string) Step {
