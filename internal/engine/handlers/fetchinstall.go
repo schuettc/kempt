@@ -108,11 +108,11 @@ func stageAndRename(destDir, bin string, data []byte) error {
 func verifyExtractInstall(assetName string, assetBytes []byte, sumsBytes []byte, bin, destDir string) error {
 	want, err := checksumHex(sumsBytes, assetName)
 	if err != nil {
-		return err
+		return fmt.Errorf("verify %s: %w", bin, err)
 	}
 	got := sha256.Sum256(assetBytes)
 	if hex.EncodeToString(got[:]) != want {
-		return fmt.Errorf("checksum mismatch for %s", assetName)
+		return fmt.Errorf("verify %s: checksum mismatch for %s", bin, assetName)
 	}
 	binBytes, err := extractBinary(assetName, assetBytes, bin)
 	if err != nil {
