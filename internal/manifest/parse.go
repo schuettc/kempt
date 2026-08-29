@@ -28,20 +28,22 @@ type rawPackage struct {
 	Service       []ServiceStep       `toml:"service"`
 	Symlink       []SymlinkStep       `toml:"symlink"`
 	JSONMerge     []JSONMergeStep     `toml:"json-merge"`
+	TomlMerge     []TomlMergeStep     `toml:"toml-merge"`
 	LineInFile    []LineInFileStep    `toml:"line-in-file"`
 	Verify        []VerifyStep        `toml:"verify"`
 }
 
 // isFreeform reports whether an undecoded key falls within the free-form
-// `merge` subtree of a json-merge step. The key must start with "packages"
-// and contain adjacent segments `json-merge` then `merge`, so unrelated
-// paths like a top-level `json-merge.merge` are not suppressed.
+// `merge` subtree of a json-merge or toml-merge step. The key must start with
+// "packages" and contain adjacent segments `json-merge`/`toml-merge` then
+// `merge`, so unrelated paths like a top-level `json-merge.merge` are not
+// suppressed.
 func isFreeform(key toml.Key) bool {
 	if len(key) == 0 || key[0] != "packages" {
 		return false
 	}
 	for i := 0; i+1 < len(key); i++ {
-		if key[i] == "json-merge" && key[i+1] == "merge" {
+		if (key[i] == "json-merge" || key[i] == "toml-merge") && key[i+1] == "merge" {
 			return true
 		}
 	}
@@ -113,6 +115,8 @@ func interleave(md toml.MetaData, pkg string, rp rawPackage) []Step {
 			return rp.Symlink[i]
 		case "json-merge":
 			return rp.JSONMerge[i]
+		case "toml-merge":
+			return rp.TomlMerge[i]
 		case "line-in-file":
 			return rp.LineInFile[i]
 		case "verify":
@@ -121,7 +125,8 @@ func interleave(md toml.MetaData, pkg string, rp rawPackage) []Step {
 		return nil
 	}
 	kinds := map[string]bool{"install": true, "github-release": true, "git-clone": true,
-		"service": true, "symlink": true, "json-merge": true, "line-in-file": true, "verify": true}
+		"service": true, "symlink": true, "json-merge": true, "toml-merge": true,
+		"line-in-file": true, "verify": true}
 	var steps []Step
 	for _, key := range md.Keys() {
 		parts := []string(key)

@@ -5,7 +5,7 @@
 # `kempt init <this-repo-url>` on a new machine to apply it.
 #
 # A config is a set of *packages*. Each package is a named bundle of *steps*.
-# There are eight step kinds; this file exercises all of them so you can copy
+# There are nine step kinds; this file exercises all of them so you can copy
 # the shapes you need. Run `kempt schema` for the full reference.
 
 [kempt]
@@ -71,6 +71,12 @@ ref = "master"
 [[packages.tools.json-merge]]
 file = "~/.config/tools/settings.json"
 merge = { theme = "dark", telemetry = false }
+
+# toml-merge: deep-merge keys into a TOML file, creating it if needed. The
+# `merge` table is free-form TOML (e.g. an agent's config.toml).
+[[packages.tools.toml-merge]]
+file = "~/.config/tools/config.toml"
+merge = { model = "gpt-5", approval = "on-request" }
 
 # service: register a background program. On macOS this is a launchd agent
 # keyed by `label`; `program` is the argv to run.

@@ -108,6 +108,12 @@ type JSONMergeStep struct {
 	Only   *Only          `toml:"only"`
 }
 
+type TomlMergeStep struct {
+	File  string         `toml:"file"`
+	Merge map[string]any `toml:"merge"`
+	Only  *Only          `toml:"only"`
+}
+
 type LineInFileStep struct {
 	File string `toml:"file"`
 	Line string `toml:"line"`
@@ -150,6 +156,9 @@ func (SymlinkStep) Class() Class { return ClassFiles }
 
 func (JSONMergeStep) Kind() string { return "json-merge" }
 func (JSONMergeStep) Class() Class { return ClassFiles }
+
+func (TomlMergeStep) Kind() string { return "toml-merge" }
+func (TomlMergeStep) Class() Class { return ClassFiles }
 
 func (LineInFileStep) Kind() string { return "line-in-file" }
 func (LineInFileStep) Class() Class { return ClassFiles }

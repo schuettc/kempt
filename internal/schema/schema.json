@@ -79,6 +79,10 @@
           "type": "array",
           "items": { "$ref": "#/$defs/jsonMergeStep" }
         },
+        "toml-merge": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/tomlMergeStep" }
+        },
         "line-in-file": {
           "type": "array",
           "items": { "$ref": "#/$defs/lineInFileStep" }
@@ -169,6 +173,18 @@
           "additionalProperties": true
         },
         "arrays": { "enum": ["append", "replace"] },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "tomlMergeStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "merge": {
+          "type": "object",
+          "additionalProperties": true
+        },
         "only": { "$ref": "#/$defs/only" }
       }
     },

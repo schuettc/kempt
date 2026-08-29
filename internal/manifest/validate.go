@@ -173,6 +173,8 @@ func stepOnly(s Step) *Only {
 		return v.Only
 	case JSONMergeStep:
 		return v.Only
+	case TomlMergeStep:
+		return v.Only
 	case LineInFileStep:
 		return v.Only
 	case VerifyStep:
@@ -244,6 +246,9 @@ func missingFields(s Step) []string {
 		req(v.Label != "", "label")
 		req(len(v.Program) > 0, "program")
 	case JSONMergeStep:
+		req(v.File != "", "file")
+		req(len(v.Merge) > 0, "merge")
+	case TomlMergeStep:
 		req(v.File != "", "file")
 		req(len(v.Merge) > 0, "merge")
 	case LineInFileStep:

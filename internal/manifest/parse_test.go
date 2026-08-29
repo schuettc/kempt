@@ -92,6 +92,16 @@ func TestIsFreeform(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "suppressed toml-merge sub-key",
+			key:  toml.Key{"packages", "agent", "toml-merge", "merge", "mcp"},
+			want: true,
+		},
+		{
+			name: "top-level toml-merge.merge without packages prefix",
+			key:  toml.Key{"toml-merge", "merge"},
+			want: false,
+		},
+		{
 			name: "unrelated package key is not suppressed",
 			key:  toml.Key{"packages", "muster", "symlink", "from"},
 			want: false,

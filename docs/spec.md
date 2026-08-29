@@ -77,6 +77,7 @@ a new versioned primitive in kempt, not a script hook.
 | `service` | software | Backend: launchd (macOS), systemd `--user` (Linux); Windows later. Renders unit/plist, `cmp`-before-reload so unchanged services never restart. |
 | `symlink` | files | Repo-relative `from`; `backup = true` moves a real file to `.bak` first. Windows requires Developer Mode — detected and reported in plan, not failed mid-apply. |
 | `json-merge` | files | Additive deep merge (jq semantics); idempotent; multiple packages may merge into the same file. Covers MCP registration and harness hooks. |
+| `toml-merge` | files | Additive deep merge for TOML config files (e.g. an agent's `config.toml`); idempotent; maps recurse, arrays append-missing, scalars overwrite. |
 | `line-in-file` | files | Ensure-line/ensure-block for shell includes and PATH nudges. |
 | `verify` | read-only | Declared checks: `command-exists`, symlink target, `version-current` (GitHub latest-release drift). |
 

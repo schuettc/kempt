@@ -206,6 +206,35 @@ file = "/tmp/foo.json"
 	}
 }
 
+func TestValidateMissingFieldTomlMergeMerge(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.toml-merge]]
+file = "/tmp/foo.toml"
+`)
+	if len(f) != 1 || !strings.Contains(f[0].Path, "toml-merge[0]") || !strings.Contains(f[0].Msg, `missing required field "merge"`) {
+		t.Fatalf("got %v", f)
+	}
+}
+
+func TestValidateTomlMergeFreeformClean(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.toml-merge]]
+file = "/tmp/foo.toml"
+merge = { model = "gpt-5", nested = { arbitrary = true } }
+`)
+	if len(f) != 0 {
+		t.Fatalf("want zero findings for free-form toml-merge subtree, got %v", f)
+	}
+}
+
 func TestValidateJSONMergeArraysBogus(t *testing.T) {
 	f := findingsFor(t, `
 [kempt]
