@@ -1,0 +1,15 @@
+name: kempt lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kempt
+        run: curl -fsSL https://kempt.tools/install.sh | sh
+      - name: Lint kempt.toml
+        run: kempt lint
