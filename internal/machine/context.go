@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,7 +19,7 @@ type Context struct {
 	Arch     string // runtime.GOARCH at construction; overridable in tests
 	UID      int    // os.Getuid() at construction; overridable in tests
 	Runner   run.Runner
-	Releases release.Releases // wired in Task 7; nil until then
+	Releases release.Releases
 
 	// Cache memoizes read-only inventory command output within one
 	// plan/apply run. It is keyed by the FakeRunner key string
@@ -37,13 +38,14 @@ func New(repoDir string, r run.Runner) (*Context, error) {
 		return nil, err
 	}
 	return &Context{
-		Home:    home,
-		RepoDir: repoDir,
-		OS:      runtime.GOOS,
-		Arch:    runtime.GOARCH,
-		UID:     os.Getuid(),
-		Runner:  r,
-		Cache:   map[string]string{},
+		Home:     home,
+		RepoDir:  repoDir,
+		OS:       runtime.GOOS,
+		Arch:     runtime.GOARCH,
+		UID:      os.Getuid(),
+		Runner:   r,
+		Releases: release.RealReleases{Client: http.DefaultClient, Base: "https://github.com"},
+		Cache:    map[string]string{},
 	}, nil
 }
 
