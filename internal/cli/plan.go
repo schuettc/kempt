@@ -30,6 +30,8 @@ func runPlan(args []string, out, errw io.Writer) error {
 	manifestFlag := fs.String("manifest", "", "path to manifest")
 	profileFlag := fs.String("profile", "", "profile to select")
 	packagesFlag := fs.String("packages", "", "comma-separated package names")
+	osFlag := fs.String("os", "", "override OS for dry-planning (e.g. linux, darwin)")
+	archFlag := fs.String("arch", "", "override Arch for dry-planning (e.g. amd64, arm64)")
 	if err := fs.Parse(args); err != nil {
 		return UsageError{Msg: err.Error()}
 	}
@@ -59,6 +61,12 @@ func runPlan(args []string, out, errw io.Writer) error {
 	ctx, err := newContext(filepath.Dir(manifestPath))
 	if err != nil {
 		return err
+	}
+	if *osFlag != "" {
+		ctx.OS = *osFlag
+	}
+	if *archFlag != "" {
+		ctx.Arch = *archFlag
 	}
 	selected, err := engine.Select(m, profile, packages)
 	if err != nil {
