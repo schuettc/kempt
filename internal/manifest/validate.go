@@ -275,6 +275,12 @@ func validateStepFields(m *Manifest) []Finding {
 					Msg:  fmt.Sprintf("missing required field %q", field),
 				})
 			}
+			if js, ok := step.(JSONMergeStep); ok && js.Arrays != "" && js.Arrays != "append" && js.Arrays != "replace" {
+				findings = append(findings, Finding{
+					Path: fmt.Sprintf("packages.%s.%s[%d]", name, kind, idx),
+					Msg:  `arrays must be "append" or "replace"`,
+				})
+			}
 			kindIdx[kind]++
 		}
 	}

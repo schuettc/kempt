@@ -42,11 +42,12 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 	}
 
 	desired := toAny(st.Merge)
-	if isSubset(desired, current) {
+	replace := st.Arrays == "replace"
+	if isSubset(desired, current, replace) {
 		return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
 	}
 
-	keys := mergeKeys(desired.(map[string]any), current)
+	keys := mergeKeys(desired.(map[string]any), current, replace)
 	return engine.Delta{Op: engine.OpChange, Detail: base + fmt.Sprintf(" (merge keys: %s)", strings.Join(keys, ", "))}, nil
 }
 
@@ -69,7 +70,7 @@ func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 		return fmt.Errorf("existing file is not valid JSON: %s", file)
 	}
 
-	merged := merge(toAny(st.Merge), current)
+	merged := merge(toAny(st.Merge), current, st.Arrays == "replace")
 	out, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
 		return err
@@ -79,12 +80,12 @@ func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 
 // mergeKeys returns the sorted top-level desired keys whose values are not
 // already a deep subset of current.
-func mergeKeys(desired map[string]any, current any) []string {
+func mergeKeys(desired map[string]any, current any, replaceArrays bool) []string {
 	curMap, _ := current.(map[string]any)
 	var keys []string
 	for k, dv := range desired {
 		cv, ok := curMap[k]
-		if !ok || !isSubset(dv, cv) {
+		if !ok || !isSubset(dv, cv, replaceArrays) {
 			keys = append(keys, k)
 		}
 	}
@@ -93,9 +94,11 @@ func mergeKeys(desired map[string]any, current any) []string {
 }
 
 // isSubset reports whether desired is deeply contained in current: maps recurse
-// per key, arrays require every desired element to be present (deep equality),
-// scalars must be equal.
-func isSubset(desired, current any) bool {
+// per key, scalars must be equal. Array handling depends on replaceArrays: when
+// false (append mode) every desired element must be present (deep equality);
+// when true (replace mode) the desired array must deep-equal current exactly, so
+// any extra, reordered, or differing element drives a change.
+func isSubset(desired, current any, replaceArrays bool) bool {
 	switch d := desired.(type) {
 	case map[string]any:
 		c, ok := current.(map[string]any)
@@ -104,7 +107,7 @@ func isSubset(desired, current any) bool {
 		}
 		for k, dv := range d {
 			cv, ok := c[k]
-			if !ok || !isSubset(dv, cv) {
+			if !ok || !isSubset(dv, cv, replaceArrays) {
 				return false
 			}
 		}
@@ -113,6 +116,9 @@ func isSubset(desired, current any) bool {
 		c, ok := current.([]any)
 		if !ok {
 			return false
+		}
+		if replaceArrays {
+			return reflect.DeepEqual(d, c)
 		}
 		for _, de := range d {
 			if !containsElem(c, de) {
@@ -125,10 +131,12 @@ func isSubset(desired, current any) bool {
 	}
 }
 
-// merge returns the deep merge of desired into current: maps recurse, arrays
-// append desired elements missing from current (order preserved), scalars and
-// mismatched types take the desired value.
-func merge(desired, current any) any {
+// merge returns the deep merge of desired into current: maps recurse, scalars
+// and mismatched types take the desired value. Array handling depends on
+// replaceArrays: when false (append mode) desired elements missing from current
+// are appended (order preserved); when true (replace mode) the desired array
+// replaces the current array wholesale.
+func merge(desired, current any, replaceArrays bool) any {
 	switch d := desired.(type) {
 	case map[string]any:
 		c, ok := current.(map[string]any)
@@ -141,13 +149,16 @@ func merge(desired, current any) any {
 		}
 		for k, dv := range d {
 			if cv, ok := out[k]; ok {
-				out[k] = merge(dv, cv)
+				out[k] = merge(dv, cv, replaceArrays)
 			} else {
 				out[k] = dv
 			}
 		}
 		return out
 	case []any:
+		if replaceArrays {
+			return append([]any{}, d...)
+		}
 		c, ok := current.([]any)
 		if !ok {
 			return append([]any{}, d...)

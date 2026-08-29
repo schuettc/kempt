@@ -89,9 +89,10 @@ type SymlinkStep struct {
 }
 
 type JSONMergeStep struct {
-	File  string         `toml:"file"`
-	Merge map[string]any `toml:"merge"`
-	Only  *Only          `toml:"only"`
+	File   string         `toml:"file"`
+	Merge  map[string]any `toml:"merge"`
+	Arrays string         `toml:"arrays"` // ""|"append"|"replace"; empty == "append"
+	Only   *Only          `toml:"only"`
 }
 
 type LineInFileStep struct {

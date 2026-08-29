@@ -178,6 +178,22 @@ file = "/tmp/foo.json"
 	}
 }
 
+func TestValidateJSONMergeArraysBogus(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.json-merge]]
+file = "/tmp/foo.json"
+arrays = "bogus"
+merge = { x = 1 }
+`)
+	if len(f) != 1 || !strings.Contains(f[0].Path, "json-merge[0]") || !strings.Contains(f[0].Msg, `arrays must be "append" or "replace"`) {
+		t.Fatalf("got %v", f)
+	}
+}
+
 func TestValidateMissingFieldLineInFileLine(t *testing.T) {
 	f := findingsFor(t, `
 [kempt]

@@ -155,6 +155,7 @@
           "type": "object",
           "additionalProperties": true
         },
+        "arrays": { "enum": ["append", "replace"] },
         "only": { "$ref": "#/$defs/only" }
       }
     },

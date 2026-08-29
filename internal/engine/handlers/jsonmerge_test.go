@@ -114,6 +114,77 @@ func TestJSONMergeArrayEnsureElement(t *testing.T) {
 	})
 }
 
+func TestJSONMergeArraysReplace(t *testing.T) {
+	h := jsonHandler(t)
+
+	t.Run("replace shrinks array", func(t *testing.T) {
+		ctx := testCtx(t)
+		f := filepath.Join(ctx.RepoDir, "c.json")
+		writeJSON(t, f, map[string]any{"packages": []any{"a", "b", "c"}})
+		s := manifest.JSONMergeStep{File: f, Merge: map[string]any{"packages": []any{"a", "b"}}, Arrays: "replace"}
+
+		d, err := h.Inspect(ctx, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Op != engine.OpChange {
+			t.Fatalf("op = %v (%q), want change", d.Op, d.Detail)
+		}
+		if err := h.Apply(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+		got := readJSON(t, f)
+		want := map[string]any{"packages": []any{"a", "b"}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+		d2, err := h.Inspect(ctx, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d2.Op != engine.OpNoop {
+			t.Fatalf("re-inspect op = %v (%q), want noop", d2.Op, d2.Detail)
+		}
+	})
+
+	t.Run("append default is noop on same inputs", func(t *testing.T) {
+		ctx := testCtx(t)
+		f := filepath.Join(ctx.RepoDir, "c.json")
+		writeJSON(t, f, map[string]any{"packages": []any{"a", "b", "c"}})
+		s := manifest.JSONMergeStep{File: f, Merge: map[string]any{"packages": []any{"a", "b"}}}
+		d, err := h.Inspect(ctx, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Op != engine.OpNoop {
+			t.Fatalf("op = %v (%q), want noop", d.Op, d.Detail)
+		}
+	})
+
+	t.Run("replace nested map array child", func(t *testing.T) {
+		ctx := testCtx(t)
+		f := filepath.Join(ctx.RepoDir, "c.json")
+		writeJSON(t, f, map[string]any{"outer": map[string]any{"keep": 1.0, "list": []any{"x", "y", "z"}}})
+		s := manifest.JSONMergeStep{File: f, Merge: map[string]any{"outer": map[string]any{"list": []any{"x"}}}, Arrays: "replace"}
+
+		d, err := h.Inspect(ctx, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Op != engine.OpChange {
+			t.Fatalf("op = %v (%q), want change", d.Op, d.Detail)
+		}
+		if err := h.Apply(ctx, s); err != nil {
+			t.Fatal(err)
+		}
+		got := readJSON(t, f)
+		want := map[string]any{"outer": map[string]any{"keep": 1.0, "list": []any{"x"}}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+}
+
 func TestJSONMergeScalarOverwrite(t *testing.T) {
 	h := jsonHandler(t)
 	ctx := testCtx(t)
@@ -223,7 +294,7 @@ func TestIsSubset(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isSubset(tt.desired, tt.cur); got != tt.want {
+			if got := isSubset(tt.desired, tt.cur, false); got != tt.want {
 				t.Fatalf("isSubset = %v, want %v", got, tt.want)
 			}
 		})
@@ -244,7 +315,7 @@ func TestMerge(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := merge(tt.desired, tt.cur); !reflect.DeepEqual(got, tt.want) {
+			if got := merge(tt.desired, tt.cur, false); !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("merge = %v, want %v", got, tt.want)
 			}
 		})
