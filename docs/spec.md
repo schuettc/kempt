@@ -86,8 +86,9 @@ own software installs "safe."
 ## Rules
 
 - Steps run in written order within a package; packages run in dependency
-  (`needs`) order. Step-level `requires` preflights (e.g. "git exists") fail the
-  plan, not the apply.
+  (`needs`) order. Planned for a later spec revision, not part of spec = 1: step-level
+  `requires` preflights (e.g. "git exists") that fail the plan, not the apply. A spec = 1
+  parser rejects `requires` as an unknown key.
 - Every step is idempotent by contract: kempt computes current vs desired and
   no-ops on match. This is what makes plan honest and converge cheap.
 - `only = { os, arch }` on packages or steps restricts where they apply; always
