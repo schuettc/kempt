@@ -16,6 +16,7 @@ type Context struct {
 	RepoDir  string
 	OS       string // runtime.GOOS at construction; overridable in tests
 	Arch     string // runtime.GOARCH at construction; overridable in tests
+	UID      int    // os.Getuid() at construction; overridable in tests
 	Runner   run.Runner
 	Releases release.Releases // wired in Task 7; nil until then
 
@@ -40,6 +41,7 @@ func New(repoDir string, r run.Runner) (*Context, error) {
 		RepoDir: repoDir,
 		OS:      runtime.GOOS,
 		Arch:    runtime.GOARCH,
+		UID:     os.Getuid(),
 		Runner:  r,
 		Cache:   map[string]string{},
 	}, nil

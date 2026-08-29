@@ -33,10 +33,11 @@ needs = ["a"]
   only = { os = "windows" }
 
 [packages.gc]
-description = "git-clone fallback coverage"
-  [[packages.gc.git-clone]]
-  repo = "https://github.com/example/repo"
-  to = "~/src/repo"
+description = "unimplemented-handler fallback coverage"
+  [[packages.gc.github-release]]
+  repo = "example/repo"
+  asset = "tool.tar.gz"
+  bin = "tool"
 
 [packages.win]
 description = "win only"
@@ -114,15 +115,15 @@ func TestBuildPlanOrderAndOps(t *testing.T) {
 		t.Fatalf("b symlink op = %v, want skip", b.Steps[1].Delta.Op)
 	}
 
-	// gc: git-clone step has no registered handler → engine fallback OpBlocked.
-	// TODO(Task 6): this assertion moves to a different kind once git-clone is
-	// implemented; re-point it at github-release or verify then.
+	// gc: github-release step has no registered handler yet (lands in Task 7),
+	// so it exercises the engine's "not implemented" fallback. git-clone is now
+	// a real handler (Task 6), so this fixture was re-pointed at github-release.
 	gc := plan.Packages[2]
 	if gc.Steps[0].Delta.Op != engine.OpBlocked {
-		t.Fatalf("gc git-clone op = %v, want blocked", gc.Steps[0].Delta.Op)
+		t.Fatalf("gc github-release op = %v, want blocked", gc.Steps[0].Delta.Op)
 	}
 	if gc.Steps[0].Delta.Detail != "handler not implemented yet (phase 1b)" {
-		t.Fatalf("gc git-clone detail = %q", gc.Steps[0].Delta.Detail)
+		t.Fatalf("gc github-release detail = %q", gc.Steps[0].Delta.Detail)
 	}
 
 	// win: whole package skipped
