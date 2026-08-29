@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -230,6 +231,51 @@ func TestStatusOutputHasNoTrailingSpace(t *testing.T) {
 	line := strings.TrimRight(got, "\n")
 	if strings.HasSuffix(line, " ") {
 		t.Fatalf("trailing space in %q", line)
+	}
+}
+
+// TestStatusStoreError injects a failing statusStore and asserts exit 0 + fallback line.
+func TestStatusStoreError(t *testing.T) {
+	orig := statusStore
+	statusStore = func() (*state.Store, error) {
+		return nil, fmt.Errorf("injected store failure")
+	}
+	t.Cleanup(func() { statusStore = orig })
+
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"status"}, &out, &errw)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	want := "kempt: status unavailable\n"
+	if got := out.String(); got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// TestStatusCorruptJSON writes bad JSON into status.json and asserts exit 0 + fallback line.
+func TestStatusCorruptJSON(t *testing.T) {
+	dir := t.TempDir()
+	// Write corrupt JSON directly into the store file.
+	statusFile := dir + "/status.json"
+	if err := os.WriteFile(statusFile, []byte("{bad json"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	orig := statusStore
+	statusStore = func() (*state.Store, error) {
+		return &state.Store{Dir: dir}, nil
+	}
+	t.Cleanup(func() { statusStore = orig })
+
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"status"}, &out, &errw)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0", code)
+	}
+	want := "kempt: no status yet \u2014 run kempt refresh\n"
+	if got := out.String(); got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }
 
