@@ -124,6 +124,18 @@ func runDrop(args []string, out, errw io.Writer) error {
 		return err
 	}
 
+	// Refuse if the package is not in the current selection.
+	inSelection := false
+	for _, name := range st.Packages {
+		if name == pkg {
+			inSelection = true
+			break
+		}
+	}
+	if !inSelection {
+		return UsageError{Msg: fmt.Sprintf("%q is not in the current selection", pkg)}
+	}
+
 	// Refuse if any still-selected package (other than pkg) needs pkg.
 	var needers []string
 	for _, name := range st.Packages {

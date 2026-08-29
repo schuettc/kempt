@@ -126,6 +126,17 @@ func TestDropRemoves(t *testing.T) {
 	}
 }
 
+func TestDropNotInSelection(t *testing.T) {
+	withAdoptEnv(t, []string{"base"}) // "b" is not in the saved selection
+	var out, errw bytes.Buffer
+	if code := Dispatch([]string{"drop", "b"}, &out, &errw); code != 2 {
+		t.Fatalf("exit = %d, want 2 (usage); err=%s", code, errw.String())
+	}
+	if !strings.Contains(errw.String(), "not in the current selection") {
+		t.Fatalf("stderr = %q, want 'not in the current selection'", errw.String())
+	}
+}
+
 func TestDropRefusedWhenNeeded(t *testing.T) {
 	withAdoptEnv(t, []string{"a", "base"})
 	var out, errw bytes.Buffer
