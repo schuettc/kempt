@@ -67,7 +67,7 @@ sha256_of() {
   fi
 }
 
-expected="$(grep " $asset\$" "$tmp/checksums.txt" | cut -d' ' -f1)"
+expected="$(grep -E " (\./)?${asset}\$" "$tmp/checksums.txt" | cut -d' ' -f1)"
 [ -n "$expected" ] || fail "no checksum found for $asset"
 actual="$(sha256_of "$tmp/$asset")"
 [ "$actual" = "$expected" ] || fail "checksum mismatch for $asset (expected $expected, got $actual)"

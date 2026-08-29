@@ -57,7 +57,8 @@ jobs:
               go build -trimpath -ldflags "$ldflags" -o "dist/${out}/kempt" ./cmd/kempt
             tar -C "dist/${out}" -czf "dist/${out}.tar.gz" kempt
           done
-          (cd dist && (shasum -a 256 ./*.tar.gz 2>/dev/null || sha256sum ./*.tar.gz) > checksums.txt)
+          # shellcheck disable=SC2035  # *.tar.gz inside cd dist; no dash-prefixed names possible
+          (cd dist && (shasum -a 256 *.tar.gz 2>/dev/null || sha256sum *.tar.gz) > checksums.txt)
       - name: Create the release
         if: steps.rel.outputs.skip == 'false'
         env:
