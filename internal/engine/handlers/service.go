@@ -14,6 +14,18 @@ import (
 
 func init() { engine.RegisterHandler(serviceHandlerImpl{}) }
 
+// expandTilde expands a leading ~ to home but never repo-joins bare values.
+// Env values are NOT repo-relative paths, so only tilde substitution applies.
+func expandTilde(home, v string) string {
+	if v == "~" {
+		return home
+	}
+	if strings.HasPrefix(v, "~/") {
+		return filepath.Join(home, v[2:])
+	}
+	return v // verbatim — never repo-join
+}
+
 // xmlEscaper escapes the XML metacharacters that can appear in program args,
 // env values, and log paths.
 var xmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
@@ -44,7 +56,7 @@ func renderPlist(ctx *machine.Context, st manifest.ServiceStep) string {
 			b.WriteString(xmlEscaper.Replace(k))
 			b.WriteString("</key>\n")
 			b.WriteString("\t\t<string>")
-			b.WriteString(xmlEscaper.Replace(ctx.Expand(st.Env[k])))
+			b.WriteString(xmlEscaper.Replace(expandTilde(ctx.Home, st.Env[k])))
 			b.WriteString("</string>\n")
 		}
 		b.WriteString("\t</dict>\n")

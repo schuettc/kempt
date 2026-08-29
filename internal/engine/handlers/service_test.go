@@ -267,6 +267,38 @@ func TestServiceApplyWritesAndReloads(t *testing.T) {
 	}
 }
 
+// TestServiceEnvExpansionVerbatim asserts that bare relative env values render
+// verbatim (not repo-joined) and that ~-prefixed values still expand to home.
+func TestServiceEnvExpansionVerbatim(t *testing.T) {
+	ctx := svcCtx(t, &run.FakeRunner{}, 501)
+	st := manifest.ServiceStep{
+		Label:   "com.example.env",
+		Program: []string{"/usr/bin/foo"},
+		Env: map[string]string{
+			"NODE_ENV": "production",
+			"HOME_DIR": "~/stuff",
+		},
+	}
+	got := renderPlist(ctx, st)
+
+	// Bare relative value must appear verbatim — never repo-joined.
+	wantEnvDict := "\t<key>EnvironmentVariables</key>\n" +
+		"\t<dict>\n" +
+		"\t\t<key>HOME_DIR</key>\n" +
+		"\t\t<string>" + filepath.Join(ctx.Home, "stuff") + "</string>\n" +
+		"\t\t<key>NODE_ENV</key>\n" +
+		"\t\t<string>production</string>\n" +
+		"\t</dict>\n"
+	if !strings.Contains(got, wantEnvDict) {
+		t.Fatalf("env dict mismatch\n--- got ---\n%q\n--- want (substring) ---\n%q", got, wantEnvDict)
+	}
+	// Also assert the full rendered output doesn't contain the RepoDir for NODE_ENV.
+	repoJoined := filepath.Join(ctx.RepoDir, "production")
+	if strings.Contains(got, repoJoined) {
+		t.Fatalf("env value was repo-joined: found %q in plist", repoJoined)
+	}
+}
+
 func TestServiceApplyNoopIssuesNoCommands(t *testing.T) {
 	h := serviceHandler(t)
 	fr := &run.FakeRunner{Responses: map[string]run.Response{}}
