@@ -60,7 +60,11 @@ func resolveSelection(profileFlag string, packagesFlag []string, st *state.State
 		return profileFlag, packagesFlag
 	}
 	if existed && st != nil {
-		return st.Profile, st.Packages
+		// init expands the chosen profile into a concrete package list stored in
+		// st.Packages. State.Profile is informational only and must NOT be passed
+		// to engine.Select alongside the package list (that would trigger the
+		// "use --profile or --packages, not both" error).
+		return "", st.Packages
 	}
 	return "", nil
 }

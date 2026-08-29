@@ -43,7 +43,10 @@ func TestResolveSelection(t *testing.T) {
 	}{
 		{"profile flag wins", "prod", nil, saved, true, "prod", nil},
 		{"packages flag wins", "", []string{"x"}, saved, true, "", []string{"x"}},
-		{"saved selection", "", nil, saved, true, "dev", []string{"a", "b"}},
+		// init expands the profile into a concrete package list; State.Profile is
+		// informational only. The resolver must return ("", st.Packages) so that
+		// engine.Select never sees both non-empty, which would be rejected.
+		{"saved selection", "", nil, saved, true, "", []string{"a", "b"}},
 		{"empty no state", "", nil, &state.State{}, false, "", nil},
 	}
 	for _, tt := range tests {

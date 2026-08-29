@@ -29,9 +29,9 @@ func init() {
 var osExecutable = os.Executable
 
 func runUpdate(args []string, out, errw io.Writer) error {
-	fs := flag.NewFlagSet("update", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	if err := fs.Parse(args); err != nil {
+	fset := flag.NewFlagSet("update", flag.ContinueOnError)
+	fset.SetOutput(io.Discard)
+	if err := fset.Parse(args); err != nil {
 		return UsageError{Msg: err.Error()}
 	}
 
