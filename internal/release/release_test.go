@@ -3,6 +3,7 @@ package release
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,27 @@ func TestRealReleasesLatestTag(t *testing.T) {
 	}
 	if tag != "v1.2.3" {
 		t.Fatalf("tag = %q, want v1.2.3", tag)
+	}
+}
+
+func TestRealReleasesLatestTagMalformedRedirect(t *testing.T) {
+	// Location header present but has no /tag/ segment.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/schuettc/x/releases/latest" {
+			http.Redirect(w, r, "/schuettc/x/releases/expanded_assets/v1.2.3", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	rr := RealReleases{Client: srv.Client(), Base: srv.URL}
+	_, err := rr.LatestTag("schuettc/x")
+	if err == nil {
+		t.Fatal("expected error for redirect without /tag/ segment")
+	}
+	if !strings.Contains(err.Error(), "/tag/") {
+		t.Fatalf("error %q should mention missing /tag/ segment", err.Error())
 	}
 }
 
@@ -63,22 +85,24 @@ func TestRealReleasesDownload(t *testing.T) {
 	}
 }
 
+func TestFakeReleasesLatestTagMissingRepo(t *testing.T) {
+	f := FakeReleases{Tags: map[string]string{}}
+	_, err := f.LatestTag("example/missing")
+	if err == nil {
+		t.Fatal("expected error for missing repo")
+	}
+	if !strings.Contains(err.Error(), "example/missing") {
+		t.Fatalf("error %q should name the repo", err.Error())
+	}
+}
+
 func TestFakeReleasesDownloadMissing(t *testing.T) {
 	f := FakeReleases{Files: map[string][]byte{}}
 	_, err := f.Download("https://example.com/x")
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if got := err.Error(); got == "" || !contains(got, "https://example.com/x") {
+	if got := err.Error(); got == "" || !strings.Contains(got, "https://example.com/x") {
 		t.Fatalf("error %q should name the url", got)
 	}
-}
-
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }

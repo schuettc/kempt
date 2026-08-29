@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/schuettc/kempt/internal/engine"
@@ -54,6 +55,11 @@ func makeTarGz(t *testing.T, name string, content []byte) []byte {
 func checksums(asset string, body []byte) []byte {
 	sum := sha256.Sum256(body)
 	return []byte(fmt.Sprintf("%s  %s\n", hex.EncodeToString(sum[:]), asset))
+}
+
+func checksumsUpper(asset string, body []byte) []byte {
+	sum := sha256.Sum256(body)
+	return []byte(fmt.Sprintf("%s  %s\n", strings.ToUpper(hex.EncodeToString(sum[:])), asset))
 }
 
 func TestGithubReleaseInspect(t *testing.T) {
@@ -193,6 +199,35 @@ func TestGithubReleaseApplyMissingChecksumLine(t *testing.T) {
 
 	if err := h.Apply(ctx, st); err == nil {
 		t.Fatal("expected missing-checksum-line error")
+	}
+}
+
+func TestGithubReleaseApplyUppercaseChecksum(t *testing.T) {
+	// checksums.txt with uppercase hex digits should still pass.
+	asset := "tool-linux-amd64.tar.gz"
+	content := []byte("#!/bin/sh\necho upper\n")
+	tgz := makeTarGz(t, "tool", content)
+	baseURL := "https://github.com/example/tool/releases/download/v3.0.0/"
+	rel := release.FakeReleases{
+		Tags: map[string]string{"example/tool": "v3.0.0"},
+		Files: map[string][]byte{
+			baseURL + asset:           tgz,
+			baseURL + "checksums.txt": checksumsUpper(asset, tgz),
+		},
+	}
+	ctx := ghCtx(t, rel)
+	h := githubReleaseHandler{}
+	st := manifest.GithubReleaseStep{Repo: "example/tool", Asset: "tool-{os}-{arch}.tar.gz", Bin: "tool"}
+
+	if err := h.Apply(ctx, st); err != nil {
+		t.Fatalf("uppercase checksum should be accepted: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(ctx.Home, ".local", "bin", "tool"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, content) {
+		t.Fatalf("binary content mismatch: %q", got)
 	}
 }
 

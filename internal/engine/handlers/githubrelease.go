@@ -73,7 +73,7 @@ func (githubReleaseHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 		return fmt.Errorf("github-release %s: no checksum line for asset %s", st.Bin, asset)
 	}
 	got := sha256.Sum256(assetBytes)
-	if hex.EncodeToString(got[:]) != want {
+	if hex.EncodeToString(got[:]) != strings.ToLower(want) {
 		return fmt.Errorf("github-release %s: checksum mismatch for %s", st.Bin, asset)
 	}
 
@@ -151,6 +151,7 @@ func stageAndRename(ctx *machine.Context, bin string, data []byte) error {
 	}
 	staged := filepath.Join(dir, fmt.Sprintf(".%s.new.%d", bin, os.Getpid()))
 	if err := os.WriteFile(staged, data, 0o755); err != nil {
+		os.Remove(staged)
 		return err
 	}
 	// WriteFile respects umask; force mode explicitly.
