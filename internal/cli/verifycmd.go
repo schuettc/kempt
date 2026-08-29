@@ -10,23 +10,15 @@ import (
 
 	"github.com/schuettc/kempt/internal/engine"
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
-	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
-	"github.com/schuettc/kempt/internal/run"
 )
 
 func init() {
-	Register(Command{Name: "plan", Summary: "show what apply would change", Run: runPlan})
+	Register(Command{Name: "verify", Summary: "run read-only verify checks", Run: runVerify})
 }
 
-// newContext builds a machine.Context for a repo directory. It is a package var
-// so tests can inject a Context backed by FakeRunner/FakeReleases.
-var newContext = func(repoDir string) (*machine.Context, error) {
-	return machine.New(repoDir, run.RealRunner{})
-}
-
-func runPlan(args []string, out, errw io.Writer) error {
-	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
+func runVerify(args []string, out, errw io.Writer) error {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	manifestPath := fs.String("manifest", "kempt.toml", "path to manifest")
 	profile := fs.String("profile", "", "profile to select")
@@ -67,10 +59,39 @@ func runPlan(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return UsageError{Msg: err.Error()}
 	}
-	plan, err := engine.BuildPlan(ctx, selected)
-	if err != nil {
-		return err
+
+	h, ok := engine.HandlerFor("verify")
+	if !ok {
+		return fmt.Errorf("verify handler not registered")
 	}
-	engine.Render(plan, out)
+
+	var passed, failed, total int
+	for _, pkg := range selected {
+		for _, step := range pkg.Steps {
+			if step.Kind() != "verify" {
+				continue
+			}
+			total++
+			delta, err := h.Inspect(ctx, step)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(out, delta.Detail)
+			if delta.Op == engine.OpBlocked {
+				failed++
+			} else {
+				passed++
+			}
+		}
+	}
+
+	if total == 0 {
+		fmt.Fprintln(out, "no verify steps")
+		return nil
+	}
+	fmt.Fprintf(out, "%d passed, %d failed\n", passed, failed)
+	if failed > 0 {
+		return fmt.Errorf("%d verify check(s) failed", failed)
+	}
 	return nil
 }

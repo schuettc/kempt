@@ -32,11 +32,6 @@ needs = ["a"]
   to = "b"
   only = { os = "windows" }
 
-[packages.gc]
-description = "unimplemented-handler fallback coverage"
-  [[packages.gc.verify]]
-  command-exists = "tool"
-
 [packages.win]
 description = "win only"
 only = { os = "windows" }
@@ -85,11 +80,11 @@ func TestBuildPlanOrderAndOps(t *testing.T) {
 	ctx := buildCtx(t)
 	plan := buildPlan(t, ctx)
 
-	if len(plan.Packages) != 4 {
-		t.Fatalf("packages = %d, want 4", len(plan.Packages))
+	if len(plan.Packages) != 3 {
+		t.Fatalf("packages = %d, want 3", len(plan.Packages))
 	}
-	names := []string{plan.Packages[0].Name, plan.Packages[1].Name, plan.Packages[2].Name, plan.Packages[3].Name}
-	wantNames := []string{"a", "b", "gc", "win"}
+	names := []string{plan.Packages[0].Name, plan.Packages[1].Name, plan.Packages[2].Name}
+	wantNames := []string{"a", "b", "win"}
 	for i, w := range wantNames {
 		if names[i] != w {
 			t.Fatalf("order = %v; want %v", names, wantNames)
@@ -113,20 +108,37 @@ func TestBuildPlanOrderAndOps(t *testing.T) {
 		t.Fatalf("b symlink op = %v, want skip", b.Steps[1].Delta.Op)
 	}
 
-	// gc: verify step has no registered handler yet (lands in Task 8), so it
-	// exercises the engine's "not implemented" fallback. github-release is now a
-	// real handler (Task 7), so this fixture was re-pointed at verify.
-	gc := plan.Packages[2]
-	if gc.Steps[0].Delta.Op != engine.OpBlocked {
-		t.Fatalf("gc verify op = %v, want blocked", gc.Steps[0].Delta.Op)
-	}
-	if gc.Steps[0].Delta.Detail != "handler not implemented yet (phase 1b)" {
-		t.Fatalf("gc verify detail = %q", gc.Steps[0].Delta.Detail)
-	}
-
 	// win: whole package skipped
-	if !plan.Packages[3].Skipped {
+	if !plan.Packages[2].Skipped {
 		t.Fatal("win package should be skipped")
+	}
+}
+
+// bogusStep is a fake Step whose kind has no registered handler. Every real
+// kind now has a handler (phase 1b complete), so the engine's "not implemented"
+// fallback can only be exercised via an injected step type. We build a
+// manifest.Package by hand to bypass Parse, which would reject an unknown kind.
+type bogusStep struct{}
+
+func (bogusStep) Kind() string          { return "bogus" }
+func (bogusStep) Class() manifest.Class { return manifest.ClassReadOnly }
+
+func TestBuildPlanUnimplementedHandlerFallback(t *testing.T) {
+	ctx := buildCtx(t)
+	pkg := &manifest.Package{Name: "z", Steps: []manifest.Step{bogusStep{}}}
+	plan, err := engine.BuildPlan(ctx, []*manifest.Package{pkg})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Packages) != 1 || len(plan.Packages[0].Steps) != 1 {
+		t.Fatalf("unexpected plan shape: %+v", plan)
+	}
+	step := plan.Packages[0].Steps[0]
+	if step.Delta.Op != engine.OpBlocked {
+		t.Fatalf("bogus step op = %v, want blocked", step.Delta.Op)
+	}
+	if step.Delta.Detail != "handler not implemented yet (phase 1b)" {
+		t.Fatalf("bogus step detail = %q", step.Delta.Detail)
 	}
 }
 
@@ -142,10 +154,8 @@ func TestRenderGolden(t *testing.T) {
 package b
   ! install (brew not found)
   - symlink (skipped: os != windows)
-package gc
-  ! handler not implemented yet (phase 1b)
 package win (skipped: os != windows)
-1 changes, 0 ok, 1 skipped, 2 blocked
+1 changes, 0 ok, 1 skipped, 1 blocked
 software changes: 0, file changes: 1
 `, ctx.Expand("a"), ctx.Expand("src/a"))
 
