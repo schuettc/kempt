@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/schuettc/kempt/internal/machine"
@@ -64,7 +65,6 @@ func setupInit(t *testing.T, r *run.FakeRunner) (store *state.Store, home, dir s
 	t.Cleanup(func() {
 		saveState, newContext, pickerRun = origSave, origCtx, origPicker
 	})
-	_ = origPicker
 	return store, home, dir
 }
 
@@ -205,5 +205,96 @@ func TestInitNoURLEmptyDir(t *testing.T) {
 	code := Dispatch([]string{"init", "-dir", dir, "-profile", "developer", "-yes"}, &out, &errw)
 	if code != 2 {
 		t.Fatalf("exit = %d, want 2; err=%s", code, errw.String())
+	}
+}
+
+// TestInitExtraPositional verifies that a second positional argument is
+// rejected with exit 2.
+func TestInitExtraPositional(t *testing.T) {
+	r := &run.FakeRunner{}
+	_, _, dir := setupInit(t, r)
+	// RemoteURL and clone not reached; extra-positional check is pre-repo.
+	r.Responses = map[string]run.Response{}
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"init", initTestURL, "extra-arg", "-dir", dir}, &out, &errw)
+	if code != 2 {
+		t.Fatalf("exit = %d, want 2; err=%s", code, errw.String())
+	}
+}
+
+// TestInitReuseExistingRepo verifies that when -dir already contains a repo
+// whose origin == the given URL, Clone is NOT called and init proceeds.
+func TestInitReuseExistingRepo(t *testing.T) {
+	r := &run.FakeRunner{}
+	store, home, dir := setupInit(t, r)
+	// RemoteURL returns the url → reuse path; no clone scripted.
+	r.Responses = map[string]run.Response{
+		"git -C " + dir + " remote get-url origin": {Stdout: initTestURL + "\n"},
+	}
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"init", initTestURL, "-dir", dir, "-profile", "developer", "-yes"}, &out, &errw)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s err=%s", code, out.String(), errw.String())
+	}
+	// Assert git clone was NOT called.
+	for _, c := range r.Calls {
+		if strings.HasPrefix(c, "git clone") {
+			t.Fatalf("git clone should not have been called; calls=%v", r.Calls)
+		}
+	}
+	// State saved with correct URL.
+	st, existed, err := store.Load()
+	if err != nil || !existed {
+		t.Fatalf("state not saved: existed=%v err=%v", existed, err)
+	}
+	if st.RepoURL != initTestURL {
+		t.Fatalf("state.RepoURL = %q, want %q", st.RepoURL, initTestURL)
+	}
+	// Symlink applied.
+	if _, err := os.Readlink(filepath.Join(home, ".rc")); err != nil {
+		t.Fatalf("symlink not created: %v", err)
+	}
+}
+
+// TestInitOriginMismatch verifies that when the repo dir's origin differs from
+// the supplied URL, init exits 2 with a UsageError.
+func TestInitOriginMismatch(t *testing.T) {
+	r := &run.FakeRunner{}
+	_, _, dir := setupInit(t, r)
+	const otherURL = "https://other.example.com/dotfiles.git"
+	r.Responses = map[string]run.Response{
+		"git -C " + dir + " remote get-url origin": {Stdout: otherURL + "\n"},
+	}
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"init", initTestURL, "-dir", dir, "-profile", "developer", "-yes"}, &out, &errw)
+	if code != 2 {
+		t.Fatalf("exit = %d, want 2 (mismatch); err=%s", code, errw.String())
+	}
+}
+
+// TestInitAdoptOrigin verifies that when no URL is given but -dir is an
+// existing repo, the origin URL is adopted and saved to state.
+func TestInitAdoptOrigin(t *testing.T) {
+	r := &run.FakeRunner{}
+	store, home, dir := setupInit(t, r)
+	// RemoteURL returns a URL; no url positional provided → adopt path.
+	r.Responses = map[string]run.Response{
+		"git -C " + dir + " remote get-url origin": {Stdout: initTestURL + "\n"},
+	}
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"init", "-dir", dir, "-profile", "developer", "-yes"}, &out, &errw)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s err=%s", code, out.String(), errw.String())
+	}
+	st, existed, err := store.Load()
+	if err != nil || !existed {
+		t.Fatalf("state not saved: existed=%v err=%v", existed, err)
+	}
+	if st.RepoURL != initTestURL {
+		t.Fatalf("state.RepoURL = %q, want adopted %q", st.RepoURL, initTestURL)
+	}
+	// Symlink applied.
+	if _, err := os.Readlink(filepath.Join(home, ".rc")); err != nil {
+		t.Fatalf("symlink not created: %v", err)
 	}
 }

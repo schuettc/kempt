@@ -52,6 +52,9 @@ func runInit(args []string, out, errw io.Writer) error {
 		positional = append(positional, rest[0])
 		rest = rest[1:]
 	}
+	if len(positional) > 1 {
+		return UsageError{Msg: "unexpected argument: " + positional[1]}
+	}
 	var url string
 	if len(positional) > 0 {
 		url = positional[0]
