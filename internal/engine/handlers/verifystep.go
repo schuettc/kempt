@@ -58,6 +58,32 @@ func (verifyStepHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.
 		}
 	}
 
+	if len(st.CommandExistsAny) > 0 {
+		names := st.CommandExistsAny
+		label := "[" + strings.Join(names, " ") + "]"
+		found := ""
+		for _, name := range names {
+			if _, err := ctx.Runner.LookPath(name); err == nil {
+				found = name
+				break
+			}
+		}
+		if found != "" {
+			pass(fmt.Sprintf("verify: one of %s ✓ (%s)", label, found))
+		} else {
+			fail(fmt.Sprintf("verify: none of %s found", label))
+		}
+	}
+
+	if st.HTTPOk != "" {
+		_, err := ctx.Releases.Download(st.HTTPOk)
+		if err == nil {
+			pass(fmt.Sprintf("verify: %s ok", st.HTTPOk))
+		} else {
+			fail(fmt.Sprintf("verify: %s unreachable (%v)", st.HTTPOk, err))
+		}
+	}
+
 	if st.VersionCurrent != nil {
 		vc := st.VersionCurrent
 		tag, err := ctx.Releases.LatestTag(vc.Repo)

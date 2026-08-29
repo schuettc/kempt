@@ -233,6 +233,102 @@ func TestVerifyMultiCheckJoinAndBlocked(t *testing.T) {
 	}
 }
 
+func TestVerifyCommandExistsAnyOnePresent(t *testing.T) {
+	r := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath b": {Stdout: "/bin/b"},
+	}}
+	ctx := verifyCtx(t, r, nil)
+	h := verifyHandler(t)
+	d, err := h.Inspect(ctx, manifest.VerifyStep{CommandExistsAny: []string{"a", "b", "c"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v, want noop; detail=%q", d.Op, d.Detail)
+	}
+	if d.Detail != "verify: one of [a b c] ✓ (b)" {
+		t.Fatalf("detail = %q", d.Detail)
+	}
+}
+
+func TestVerifyCommandExistsAnyNonePresent(t *testing.T) {
+	r := &run.FakeRunner{} // nothing resolves
+	ctx := verifyCtx(t, r, nil)
+	h := verifyHandler(t)
+	d, err := h.Inspect(ctx, manifest.VerifyStep{CommandExistsAny: []string{"x", "y"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpBlocked {
+		t.Fatalf("op = %v, want blocked; detail=%q", d.Op, d.Detail)
+	}
+	if d.Detail != "verify: none of [x y] found" {
+		t.Fatalf("detail = %q", d.Detail)
+	}
+}
+
+func TestVerifyHTTPOkPass(t *testing.T) {
+	rel := release.FakeReleases{Files: map[string][]byte{
+		"https://example.com/check": []byte("ok"),
+	}}
+	ctx := verifyCtx(t, &run.FakeRunner{}, rel)
+	h := verifyHandler(t)
+	d, err := h.Inspect(ctx, manifest.VerifyStep{HTTPOk: "https://example.com/check"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v, want noop; detail=%q", d.Op, d.Detail)
+	}
+	if d.Detail != "verify: https://example.com/check ok" {
+		t.Fatalf("detail = %q", d.Detail)
+	}
+}
+
+func TestVerifyHTTPOkFail(t *testing.T) {
+	rel := release.FakeReleases{Files: map[string][]byte{}} // url not in map → error
+	ctx := verifyCtx(t, &run.FakeRunner{}, rel)
+	h := verifyHandler(t)
+	d, err := h.Inspect(ctx, manifest.VerifyStep{HTTPOk: "https://example.com/missing"})
+	if err != nil {
+		t.Fatal(err) // must not hard-error
+	}
+	if d.Op != engine.OpBlocked {
+		t.Fatalf("op = %v, want blocked; detail=%q", d.Op, d.Detail)
+	}
+	if !strings.Contains(d.Detail, "https://example.com/missing") || !strings.Contains(d.Detail, "unreachable") {
+		t.Fatalf("detail = %q", d.Detail)
+	}
+}
+
+func TestVerifyHTTPOkCombinedWithCommandExists(t *testing.T) {
+	r := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath tool": {Stdout: "/bin/tool"},
+	}}
+	rel := release.FakeReleases{Files: map[string][]byte{}} // url fails
+	ctx := verifyCtx(t, r, rel)
+	h := verifyHandler(t)
+	d, err := h.Inspect(ctx, manifest.VerifyStep{
+		CommandExists: "tool",
+		HTTPOk:        "https://example.com/missing",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpBlocked {
+		t.Fatalf("op = %v, want blocked", d.Op)
+	}
+	if !strings.Contains(d.Detail, "; ") {
+		t.Fatalf("detail should join with '; ': %q", d.Detail)
+	}
+	if !strings.Contains(d.Detail, "verify: command tool ✓") {
+		t.Fatalf("detail missing passing check: %q", d.Detail)
+	}
+	if !strings.Contains(d.Detail, "unreachable") {
+		t.Fatalf("detail missing unreachable: %q", d.Detail)
+	}
+}
+
 func TestVerifyMultiCheckAllPass(t *testing.T) {
 	r := &run.FakeRunner{Responses: map[string]run.Response{
 		"lookpath a": {Stdout: "/bin/a"},

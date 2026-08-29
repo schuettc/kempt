@@ -255,7 +255,7 @@ func missingFields(s Step) []string {
 			len(v.Npm) > 0 || len(v.Pi) > 0
 		req(hasBackend, "install")
 	case VerifyStep:
-		hasCheck := v.CommandExists != "" || v.SymlinkTarget != nil || v.VersionCurrent != nil
+		hasCheck := v.CommandExists != "" || len(v.CommandExistsAny) > 0 || v.HTTPOk != "" || v.SymlinkTarget != nil || v.VersionCurrent != nil
 		req(hasCheck, "verify")
 	}
 	return missing

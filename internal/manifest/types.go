@@ -115,10 +115,12 @@ type LineInFileStep struct {
 }
 
 type VerifyStep struct {
-	CommandExists  string              `toml:"command-exists"`
-	SymlinkTarget  *SymlinkTargetCheck `toml:"symlink-target"`
-	VersionCurrent *VersionCheck       `toml:"version-current"`
-	Only           *Only               `toml:"only"`
+	CommandExists    string              `toml:"command-exists"`
+	CommandExistsAny []string            `toml:"command-exists-any"`
+	HTTPOk           string              `toml:"http-ok"`
+	SymlinkTarget    *SymlinkTargetCheck `toml:"symlink-target"`
+	VersionCurrent   *VersionCheck       `toml:"version-current"`
+	Only             *Only               `toml:"only"`
 }
 
 type SymlinkTargetCheck struct {

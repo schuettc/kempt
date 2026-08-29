@@ -186,6 +186,8 @@
       "additionalProperties": false,
       "properties": {
         "command-exists": { "type": "string" },
+        "command-exists-any": { "type": "array", "items": { "type": "string" } },
+        "http-ok": { "type": "string" },
         "symlink-target": {
           "type": "object",
           "additionalProperties": false,
