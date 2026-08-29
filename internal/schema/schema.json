@@ -104,6 +104,8 @@
         },
         "winget": { "type": "array", "items": { "type": "string" } },
         "apt": { "type": "array", "items": { "type": "string" } },
+        "npm": { "type": "array", "items": { "type": "string" } },
+        "pi": { "type": "array", "items": { "type": "string" } },
         "only": { "$ref": "#/$defs/only" }
       }
     },

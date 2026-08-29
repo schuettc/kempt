@@ -52,7 +52,12 @@ type InstallStep struct {
 	Brew   *BrewSpec `toml:"brew"`
 	Winget []string  `toml:"winget"`
 	Apt    []string  `toml:"apt"`
-	Only   *Only     `toml:"only"`
+	// Npm and Pi are ADDITIVE cross-platform package sources: unlike the
+	// OS-exclusive brew/winget/apt choice (one wins per OS), a single install
+	// step may carry brew AND npm AND pi, and every present source applies.
+	Npm  []string `toml:"npm"`
+	Pi   []string `toml:"pi"`
+	Only *Only    `toml:"only"`
 }
 
 type BrewSpec struct {

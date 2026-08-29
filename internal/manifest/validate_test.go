@@ -105,6 +105,34 @@ brew = {}
 	}
 }
 
+func TestValidateNpmOnlyIsABackend(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.install]]
+npm = ["typescript"]
+`)
+	if len(f) != 0 {
+		t.Fatalf("npm-only install must be a valid backend, got %v", f)
+	}
+}
+
+func TestValidatePiOnlyIsABackend(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.install]]
+pi = ["npm:typescript"]
+`)
+	if len(f) != 0 {
+		t.Fatalf("pi-only install must be a valid backend, got %v", f)
+	}
+}
+
 func TestValidateStepLevelOnlyBadArch(t *testing.T) {
 	f := findingsFor(t, `
 [kempt]

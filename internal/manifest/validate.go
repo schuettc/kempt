@@ -251,7 +251,8 @@ func missingFields(s Step) []string {
 		req(v.Line != "", "line")
 	case InstallStep:
 		brewHasContent := v.Brew != nil && (len(v.Brew.Formulas) > 0 || len(v.Brew.Casks) > 0 || len(v.Brew.Taps) > 0)
-		hasBackend := brewHasContent || len(v.Winget) > 0 || len(v.Apt) > 0
+		hasBackend := brewHasContent || len(v.Winget) > 0 || len(v.Apt) > 0 ||
+			len(v.Npm) > 0 || len(v.Pi) > 0
 		req(hasBackend, "install")
 	case VerifyStep:
 		hasCheck := v.CommandExists != "" || v.SymlinkTarget != nil || v.VersionCurrent != nil

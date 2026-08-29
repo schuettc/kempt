@@ -332,6 +332,204 @@ func TestInstallApplyOrderAndCacheClear(t *testing.T) {
 	}
 }
 
+// --- npm backend ---
+
+const npmInvCmd = "npm ls -g --depth=0 --parseable"
+
+func TestInstallNpmAllPresent(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: "/usr/lib\n/usr/lib/node_modules/typescript\n/usr/lib/node_modules/prettier\n"},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"typescript", "prettier"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop", d.Op)
+	}
+	if d.Detail != "npm: 2 present" {
+		t.Fatalf("detail = %q; want %q", d.Detail, "npm: 2 present")
+	}
+	wantCalls := []string{"lookpath npm", npmInvCmd}
+	if !reflect.DeepEqual(fake.Calls, wantCalls) {
+		t.Fatalf("calls = %v; want %v", fake.Calls, wantCalls)
+	}
+}
+
+func TestInstallNpmMissing(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm":            {Stdout: "/usr/bin/npm"},
+		npmInvCmd:                 {Stdout: "/usr/lib\n/usr/lib/node_modules/typescript\n"},
+		"npm install -g prettier": {},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"typescript", "prettier"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+	if d.Detail != "npm install: prettier" {
+		t.Fatalf("detail = %q; want %q", d.Detail, "npm install: prettier")
+	}
+
+	fake.Calls = nil
+	if err := h.Apply(ctx, step); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	want := []string{"npm install -g prettier"}
+	if !reflect.DeepEqual(fake.Calls, want) {
+		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
+	}
+	if _, ok := ctx.Cache[npmInvCmd]; ok {
+		t.Fatalf("npm cache key not cleared after Apply")
+	}
+}
+
+func TestInstallNpmNotFound(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"typescript"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpBlocked {
+		t.Fatalf("op = %v; want OpBlocked", d.Op)
+	}
+	if d.Detail != "install (npm not found)" {
+		t.Fatalf("detail = %q; want %q", d.Detail, "install (npm not found)")
+	}
+}
+
+// --- pi backend ---
+
+func TestInstallPiAllPresent(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi": {Stdout: "/usr/bin/pi"},
+		"pi list":     {Stdout: "npm:typescript@5.0.0\n/Users/me/local-tool\n"},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"npm:typescript", "/Users/me/local-tool"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop", d.Op)
+	}
+	if d.Detail != "pi: 2 present" {
+		t.Fatalf("detail = %q; want %q", d.Detail, "pi: 2 present")
+	}
+	wantCalls := []string{"lookpath pi", "pi list"}
+	if !reflect.DeepEqual(fake.Calls, wantCalls) {
+		t.Fatalf("calls = %v; want %v", fake.Calls, wantCalls)
+	}
+}
+
+func TestInstallPiMissing(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi":           {Stdout: "/usr/bin/pi"},
+		"pi list":               {Stdout: "npm:typescript@5.0.0\n"},
+		"pi install npm:eslint": {},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"npm:typescript", "npm:eslint"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+	if d.Detail != "pi install: npm:eslint" {
+		t.Fatalf("detail = %q; want %q", d.Detail, "pi install: npm:eslint")
+	}
+
+	fake.Calls = nil
+	if err := h.Apply(ctx, step); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	want := []string{"pi install npm:eslint"}
+	if !reflect.DeepEqual(fake.Calls, want) {
+		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
+	}
+	if _, ok := ctx.Cache["pi list"]; ok {
+		t.Fatalf("pi cache key not cleared after Apply")
+	}
+}
+
+func TestInstallPiNotFound(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"npm:typescript"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpBlocked {
+		t.Fatalf("op = %v; want OpBlocked", d.Op)
+	}
+	if d.Detail != "install (pi not found)" {
+		t.Fatalf("detail = %q; want %q", d.Detail, "install (pi not found)")
+	}
+}
+
+// --- combined brew + npm (additive) ---
+
+func TestInstallCombinedBrewNpm(t *testing.T) {
+	resp := brewFound("jq\n", "", "")
+	resp["brew install fd"] = run.Response{}
+	resp["lookpath npm"] = run.Response{Stdout: "/usr/bin/npm"}
+	resp[npmInvCmd] = run.Response{Stdout: "/usr/lib\n/usr/lib/node_modules/typescript\n"}
+	resp["npm install -g prettier"] = run.Response{}
+	fake := &run.FakeRunner{Responses: resp}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{
+		Brew: &manifest.BrewSpec{Formulas: []string{"jq", "fd"}},
+		Npm:  []string{"typescript", "prettier"},
+	}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+	want := "brew install: fd; npm install: prettier"
+	if d.Detail != want {
+		t.Fatalf("detail = %q; want %q", d.Detail, want)
+	}
+
+	fake.Calls = nil
+	if err := h.Apply(ctx, step); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	wantCalls := []string{"brew install fd", "npm install -g prettier"}
+	if !reflect.DeepEqual(fake.Calls, wantCalls) {
+		t.Fatalf("apply calls = %v; want %v", fake.Calls, wantCalls)
+	}
+}
+
 func TestInstallApplySkipsEmptyGroups(t *testing.T) {
 	resp := brewFound("", "", "")
 	resp["brew install jq"] = run.Response{}
