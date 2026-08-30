@@ -166,6 +166,4 @@ jobs:
           version="${TAG#v}"
           printf '%s' "$version" | aws s3 cp - "s3://$BUCKET/dl/kempt/latest" \
             --content-type text/plain --cache-control 'public,max-age=60,must-revalidate'
-          # TODO(Phase 1): replace with the kempt.tools CloudFront distribution id
-          # emitted by the downloads deploy (StaticSite Downloads distribution).
-          aws cloudfront create-invalidation --distribution-id KEMPT_DIST_ID_FILL_AFTER_DEPLOY --paths '/dl/kempt/latest'
+          aws cloudfront create-invalidation --distribution-id E309WZW10YNEN --paths '/dl/kempt/latest'
