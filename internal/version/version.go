@@ -3,6 +3,7 @@ package version
 var (
 	version = "dev"
 	commit  = ""
+	date    = ""
 )
 
 // Number returns the bare version string with no commit suffix, for
@@ -10,6 +11,15 @@ var (
 // trimmed).
 func Number() string {
 	return version
+}
+
+func Commit() string {
+	return commit
+}
+
+// Date returns the ldflags-stamped build/commit date (empty in a plain build).
+func Date() string {
+	return date
 }
 
 func String() string {

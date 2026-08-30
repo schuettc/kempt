@@ -1,6 +1,7 @@
 version := `cat VERSION`
 commit  := `git rev-parse --short HEAD 2>/dev/null || echo none`
-ldflags := "-X github.com/schuettc/kempt/internal/version.version=" + version + " -X github.com/schuettc/kempt/internal/version.commit=" + commit
+date    := `date -u +%Y-%m-%d`
+ldflags := "-X github.com/schuettc/kempt/internal/version.version=" + version + " -X github.com/schuettc/kempt/internal/version.commit=" + commit + " -X github.com/schuettc/kempt/internal/version.date=" + date
 
 default: verify
 

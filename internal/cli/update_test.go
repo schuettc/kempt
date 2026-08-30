@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +12,7 @@ import (
 	"github.com/schuettc/kempt/internal/release"
 	"github.com/schuettc/kempt/internal/run"
 	"github.com/schuettc/kempt/internal/state"
-	"github.com/schuettc/kempt/internal/version"
+	tools "github.com/schuettc/tools-common"
 )
 
 const updateManifest = `
@@ -26,8 +27,9 @@ description = "a"
 `
 
 // setupUpdate wires loadState, newContext (FakeRunner+FakeReleases, tempdir
-// Home), and osExecutable at a tempdir fake exe. It returns (home, repo, exe).
-func setupUpdate(t *testing.T, r *run.FakeRunner, rel release.Releases) (home, repo, exe string) {
+// Home), and stubs the selfUpdate seam to a no-op so the binary-replace step
+// never reaches the network. It returns (home, repo).
+func setupUpdate(t *testing.T, r *run.FakeRunner, rel release.Releases) (home, repo string) {
 	t.Helper()
 	repo = t.TempDir()
 	if err := os.WriteFile(filepath.Join(repo, "kempt.toml"), []byte(updateManifest), 0o644); err != nil {
@@ -41,18 +43,12 @@ func setupUpdate(t *testing.T, r *run.FakeRunner, rel release.Releases) (home, r
 	}
 	home = t.TempDir()
 
-	exeDir := t.TempDir()
-	exe = filepath.Join(exeDir, "kempt")
-	if err := os.WriteFile(exe, []byte("OLD"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
 	stateStore := &state.Store{Dir: t.TempDir()}
 	if err := stateStore.Save(&state.State{RepoDir: repo, Packages: []string{"a"}}); err != nil {
 		t.Fatal(err)
 	}
 
-	origLoad, origCtx, origExe := loadState, newContext, osExecutable
+	origLoad, origCtx, origSelf := loadState, newContext, selfUpdate
 	loadState = func() (*state.State, bool, error) { return stateStore.Load() }
 	newContext = func(repoDir string) (*machine.Context, error) {
 		return &machine.Context{
@@ -65,20 +61,22 @@ func setupUpdate(t *testing.T, r *run.FakeRunner, rel release.Releases) (home, r
 			Cache:    map[string]string{},
 		}, nil
 	}
-	osExecutable = func() (string, error) { return exe, nil }
+	// Default: self-update is a no-op (already latest).
+	selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error) {
+		return false, "dev", nil
+	}
 	t.Cleanup(func() {
-		loadState, newContext, osExecutable = origLoad, origCtx, origExe
+		loadState, newContext, selfUpdate = origLoad, origCtx, origSelf
 	})
-	return home, repo, exe
+	return home, repo
 }
 
-// TestUpdateCurrentBinaryConverges: pull succeeds, the release tag matches the
-// current version (vdev → "dev") so self-update is a no-op, and a files-only
-// manifest converges. Exit 0.
+// TestUpdateCurrentBinaryConverges: pull succeeds, self-update is a no-op, and
+// a files-only manifest converges. Exit 0.
 func TestUpdateCurrentBinaryConverges(t *testing.T) {
 	r := &run.FakeRunner{}
-	rel := release.FakeReleases{Tags: map[string]string{"schuettc/kempt": "v" + version.Number()}}
-	home, repo, exe := setupUpdate(t, r, rel)
+	rel := release.FakeReleases{}
+	home, repo := setupUpdate(t, r, rel)
 	r.Responses = map[string]run.Response{
 		"git -C " + repo + " pull --rebase --autostash": {Stdout: ""},
 	}
@@ -95,17 +93,13 @@ func TestUpdateCurrentBinaryConverges(t *testing.T) {
 	} else if want := filepath.Join(repo, "src", "rc"); target != want {
 		t.Fatalf("link target = %q, want %q", target, want)
 	}
-	// Self-update was a no-op: exe untouched.
-	if got, _ := os.ReadFile(exe); string(got) != "OLD" {
-		t.Fatalf("exe changed to %q, want OLD (no-op self-update)", got)
-	}
 }
 
 // TestUpdatePullErrorAborts: a pull failure must not be swallowed. Exit 1.
 func TestUpdatePullErrorAborts(t *testing.T) {
 	r := &run.FakeRunner{}
-	rel := release.FakeReleases{Tags: map[string]string{"schuettc/kempt": "v" + version.Number()}}
-	_, repo, _ := setupUpdate(t, r, rel)
+	rel := release.FakeReleases{}
+	_, repo := setupUpdate(t, r, rel)
 	r.Responses = map[string]run.Response{
 		"git -C " + repo + " pull --rebase --autostash": {Err: fmt.Errorf("merge conflict")},
 	}
