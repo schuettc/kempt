@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -41,10 +42,10 @@ const (
 	brewFormulaCmd = "brew list --formula -1"
 	brewCaskCmd    = "brew list --cask -1"
 	brewTapCmd     = "brew tap"
-	// npmInventoryCmd lists globally-installed packages. --parseable prints one
-	// absolute install path per package; the package name is the path segment
-	// after "node_modules/" (which preserves @scope/name for scoped packages).
-	npmInventoryCmd = "npm ls -g --depth=0 --parseable"
+	// npmInventoryCmd lists globally-installed packages as JSON. The
+	// `.dependencies` object maps package NAME (scoped names like "@scope/name"
+	// are keys) to an object carrying `.version`, letting us build name→version.
+	npmInventoryCmd = "npm ls -g --depth=0 --json"
 	// piInventoryCmd lists registered package identifiers, one per line.
 	piInventoryCmd = "pi list"
 )
@@ -148,11 +149,11 @@ func npmInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 	if err != nil {
 		return engine.Delta{}, err
 	}
-	miss := missing(desired, installed)
-	if len(miss) == 0 {
+	need := needing(desired, installed)
+	if len(need) == 0 {
 		return engine.Delta{Op: engine.OpNoop, Detail: fmt.Sprintf("npm: %d present", len(desired))}, nil
 	}
-	return engine.Delta{Op: engine.OpChange, Detail: "npm install: " + strings.Join(miss, " ")}, nil
+	return engine.Delta{Op: engine.OpChange, Detail: "npm install: " + strings.Join(need, " ")}, nil
 }
 
 // npmApply installs the missing global packages in one command, then
@@ -165,40 +166,43 @@ func npmApply(ctx *machine.Context, desired []string) error {
 	if err != nil {
 		return err
 	}
-	miss := missing(desired, installed)
-	if len(miss) == 0 {
+	need := needing(desired, installed)
+	if len(need) == 0 {
 		return nil
 	}
-	if _, err := ctx.Runner.Run("npm", append([]string{"install", "-g"}, miss...)...); err != nil {
+	// Each entry is installed verbatim; a pinned entry carries its @version so
+	// npm installs exactly that version.
+	if _, err := ctx.Runner.Run("npm", append([]string{"install", "-g"}, need...)...); err != nil {
 		return err
 	}
 	delete(ctx.Cache, npmInventoryCmd)
 	return nil
 }
 
-// npmInventory returns the set of globally-installed npm package names,
-// memoized via ctx.Cache.
-func npmInventory(ctx *machine.Context) (map[string]struct{}, error) {
+// npmInventory returns globally-installed npm packages as name→version,
+// memoized via ctx.Cache. It parses `npm ls -g --depth=0 --json`, reading the
+// top-level `.dependencies` object (keys are package names, preserving
+// @scope/name). A parse failure is treated as no packages installed.
+func npmInventory(ctx *machine.Context) (map[string]string, error) {
 	out, err := cachedRun(ctx, npmInventoryCmd)
 	if err != nil {
 		return nil, err
 	}
-	set := map[string]struct{}{}
-	const marker = "node_modules/"
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		i := strings.LastIndex(line, marker)
-		if i < 0 {
-			continue // the prefix directory line has no node_modules segment
-		}
-		if name := line[i+len(marker):]; name != "" {
-			set[name] = struct{}{}
+	inv := map[string]string{}
+	var parsed struct {
+		Dependencies map[string]struct {
+			Version string `json:"version"`
+		} `json:"dependencies"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		return inv, nil // robust: treat unparseable output as no packages
+	}
+	for name, dep := range parsed.Dependencies {
+		if name != "" {
+			inv[name] = dep.Version
 		}
 	}
-	return set, nil
+	return inv, nil
 }
 
 // piInspect probes registered pi packages (read-only) and reports the delta.
@@ -210,11 +214,11 @@ func piInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 	if err != nil {
 		return engine.Delta{}, err
 	}
-	miss := missing(desired, present)
-	if len(miss) == 0 {
+	need := needing(desired, present)
+	if len(need) == 0 {
 		return engine.Delta{Op: engine.OpNoop, Detail: fmt.Sprintf("pi: %d present", len(desired))}, nil
 	}
-	return engine.Delta{Op: engine.OpChange, Detail: "pi install: " + strings.Join(miss, " ")}, nil
+	return engine.Delta{Op: engine.OpChange, Detail: "pi install: " + strings.Join(need, " ")}, nil
 }
 
 // piApply installs each missing pi package with its own command, then
@@ -227,11 +231,13 @@ func piApply(ctx *machine.Context, desired []string) error {
 	if err != nil {
 		return err
 	}
-	miss := missing(desired, present)
-	if len(miss) == 0 {
+	need := needing(desired, present)
+	if len(need) == 0 {
 		return nil
 	}
-	for _, p := range miss {
+	// Install each entry verbatim; a pinned entry (e.g. npm:name@ver) carries
+	// its version so pi converges to exactly that version.
+	for _, p := range need {
 		if _, err := ctx.Runner.Run("pi", "install", p); err != nil {
 			return err
 		}
@@ -240,39 +246,52 @@ func piApply(ctx *machine.Context, desired []string) error {
 	return nil
 }
 
-// piInventory returns the set of registered pi package identifiers, memoized
-// via ctx.Cache. `npm:<name>@<version>` entries are reduced to `npm:<name>`
-// (version stripped) so they match unversioned desired identifiers;
-// local-path and other entries are kept verbatim.
-func piInventory(ctx *machine.Context) (map[string]struct{}, error) {
+// piInventory returns registered pi packages as name→version, memoized via
+// ctx.Cache. For `npm:<name>@<version>` lines the key is `npm:<name>` (prefix
+// and any @scope preserved) and the value is `<version>`; local-path and other
+// lines are kept verbatim as the key with an empty (unversioned) value.
+func piInventory(ctx *machine.Context) (map[string]string, error) {
 	out, err := cachedRun(ctx, piInventoryCmd)
 	if err != nil {
 		return nil, err
 	}
-	set := map[string]struct{}{}
+	inv := map[string]string{}
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		// Skip blank lines and section-header lines (e.g. "User packages:").
 		if line == "" || strings.HasSuffix(line, ":") {
 			continue
 		}
-		set[reducePiEntry(line)] = struct{}{}
+		name, ver := splitNameVersion(line)
+		inv[name] = ver
 	}
-	return set, nil
+	return inv, nil
 }
 
-// reducePiEntry strips a trailing @version from an npm: identifier, preserving
-// any @scope prefix. Non-npm entries (e.g. local paths) are returned verbatim.
-func reducePiEntry(s string) string {
+// splitNameVersion splits an entry into (name, version) at a trailing @version,
+// preserving an `npm:` prefix and never treating a leading @scope as a version
+// separator. It generalizes the old reducePiEntry helper.
+//
+// Examples:
+//
+//	"npm:pi-tmux-bridge@0.1.1"            → ("npm:pi-tmux-bridge", "0.1.1")
+//	"npm:pi-tmux-bridge"                  → ("npm:pi-tmux-bridge", "")
+//	"@earendil-works/pi-coding-agent"     → ("@earendil-works/pi-coding-agent", "")
+//	"@earendil-works/pi-coding-agent@1.2.3" → ("@earendil-works/pi-coding-agent", "1.2.3")
+//	"/local/path"                         → ("/local/path", "")
+func splitNameVersion(entry string) (name, version string) {
 	const prefix = "npm:"
-	if !strings.HasPrefix(s, prefix) {
-		return s
+	work := entry
+	pre := ""
+	if strings.HasPrefix(entry, prefix) {
+		pre = prefix
+		work = entry[len(prefix):]
 	}
-	rest := s[len(prefix):]
-	if at := strings.LastIndex(rest, "@"); at > 0 {
-		rest = rest[:at]
+	// at > 0 guard so a leading "@scope" is not treated as a version separator.
+	if at := strings.LastIndex(work, "@"); at > 0 {
+		return pre + work[:at], work[at+1:]
 	}
-	return prefix + rest
+	return entry, ""
 }
 
 // useBrew reports whether the brew backend applies: darwin/linux with brew
@@ -437,6 +456,35 @@ func missing(desired []string, installed map[string]struct{}) []string {
 	var out []string
 	for _, d := range desired {
 		if _, ok := installed[d]; !ok {
+			out = append(out, d)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// needing returns the desired entries that are not satisfied by the installed
+// name→version inventory, sorted. It supports both unversioned and pinned
+// desired entries:
+//
+//   - UNVERSIONED ("name"): satisfied if the name is installed at ANY version
+//     (presence-only — unchanged legacy behavior).
+//   - PINNED ("name@version"): satisfied only if installed[name] == version;
+//     otherwise it needs (re)install (covers absent AND wrong-version).
+//
+// The returned strings are the ORIGINAL desired entries (carrying any @version)
+// so Apply installs them verbatim.
+func needing(desired []string, installed map[string]string) []string {
+	var out []string
+	for _, d := range desired {
+		name, ver := splitNameVersion(d)
+		if ver == "" {
+			if _, ok := installed[name]; !ok {
+				out = append(out, d)
+			}
+			continue
+		}
+		if installed[name] != ver {
 			out = append(out, d)
 		}
 	}

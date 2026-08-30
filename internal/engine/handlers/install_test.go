@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -335,12 +336,12 @@ func TestInstallApplyOrderAndCacheClear(t *testing.T) {
 
 // --- npm backend ---
 
-const npmInvCmd = "npm ls -g --depth=0 --parseable"
+const npmInvCmd = "npm ls -g --depth=0 --json"
 
 func TestInstallNpmAllPresent(t *testing.T) {
 	fake := &run.FakeRunner{Responses: map[string]run.Response{
 		"lookpath npm": {Stdout: "/usr/bin/npm"},
-		npmInvCmd:      {Stdout: "/usr/lib\n/usr/lib/node_modules/typescript\n/usr/lib/node_modules/prettier\n"},
+		npmInvCmd:      {Stdout: `{"dependencies":{"typescript":{"version":"5.0.0"},"prettier":{"version":"3.0.0"}}}`},
 	}}
 	ctx := installCtx(t, "darwin", fake)
 	h := getInstallHandler(t)
@@ -365,7 +366,7 @@ func TestInstallNpmAllPresent(t *testing.T) {
 func TestInstallNpmMissing(t *testing.T) {
 	fake := &run.FakeRunner{Responses: map[string]run.Response{
 		"lookpath npm":            {Stdout: "/usr/bin/npm"},
-		npmInvCmd:                 {Stdout: "/usr/lib\n/usr/lib/node_modules/typescript\n"},
+		npmInvCmd:                 {Stdout: `{"dependencies":{"typescript":{"version":"5.0.0"}}}`},
 		"npm install -g prettier": {},
 	}}
 	ctx := installCtx(t, "darwin", fake)
@@ -501,7 +502,7 @@ func TestInstallCombinedBrewNpm(t *testing.T) {
 	resp := brewFound("jq\n", "", "")
 	resp["brew install fd"] = run.Response{}
 	resp["lookpath npm"] = run.Response{Stdout: "/usr/bin/npm"}
-	resp[npmInvCmd] = run.Response{Stdout: "/usr/lib\n/usr/lib/node_modules/typescript\n"}
+	resp[npmInvCmd] = run.Response{Stdout: `{"dependencies":{"typescript":{"version":"5.0.0"}}}`}
 	resp["npm install -g prettier"] = run.Response{}
 	fake := &run.FakeRunner{Responses: resp}
 	ctx := installCtx(t, "darwin", fake)
@@ -626,8 +627,8 @@ func TestInstallPiHeaderTolerated(t *testing.T) {
 func TestInstallNpmScopedPackage(t *testing.T) {
 	fake := &run.FakeRunner{Responses: map[string]run.Response{
 		"lookpath npm": {Stdout: "/usr/bin/npm"},
-		// Scoped package path: the name is the two-segment @scope/pkg part.
-		npmInvCmd: {Stdout: "/usr/lib\n/usr/lib/node_modules/@earendil-works/pi-coding-agent\n"},
+		// Scoped package: the JSON dependency key is the @scope/pkg name.
+		npmInvCmd: {Stdout: `{"dependencies":{"@earendil-works/pi-coding-agent":{"version":"1.0.0"}}}`},
 	}}
 	ctx := installCtx(t, "darwin", fake)
 	h := getInstallHandler(t)
@@ -642,5 +643,291 @@ func TestInstallNpmScopedPackage(t *testing.T) {
 	}
 	if d.Detail != "npm: 1 present" {
 		t.Fatalf("detail = %q; want \"npm: 1 present\"", d.Detail)
+	}
+}
+
+// --- version-aware npm/pi backends ---
+
+func npmJSON(deps map[string]string) string {
+	var b strings.Builder
+	b.WriteString(`{"dependencies":{`)
+	first := true
+	// deterministic order not required for parsing; iterate sorted for stability.
+	keys := make([]string, 0, len(deps))
+	for k := range deps {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if !first {
+			b.WriteString(",")
+		}
+		first = false
+		b.WriteString(`"` + k + `":{"version":"` + deps[k] + `"}`)
+	}
+	b.WriteString(`}}`)
+	return b.String()
+}
+
+func TestSplitNameVersion(t *testing.T) {
+	cases := []struct {
+		in, name, ver string
+	}{
+		{"npm:pi-tmux-bridge@0.1.1", "npm:pi-tmux-bridge", "0.1.1"},
+		{"npm:pi-tmux-bridge", "npm:pi-tmux-bridge", ""},
+		{"@earendil-works/pi-coding-agent", "@earendil-works/pi-coding-agent", ""},
+		{"@earendil-works/pi-coding-agent@1.2.3", "@earendil-works/pi-coding-agent", "1.2.3"},
+		{"/local/path", "/local/path", ""},
+		{"npm:@gotgenes/pi-permission-system@27.0.1", "npm:@gotgenes/pi-permission-system", "27.0.1"},
+	}
+	for _, c := range cases {
+		name, ver := splitNameVersion(c.in)
+		if name != c.name || ver != c.ver {
+			t.Errorf("splitNameVersion(%q) = (%q, %q); want (%q, %q)", c.in, name, ver, c.name, c.ver)
+		}
+	}
+}
+
+func TestNpmInventoryParse(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		npmInvCmd: {Stdout: `{"dependencies":{"pkg":{"version":"1.2.3"},"@scope/n":{"version":"0.4.0"}}}`},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	inv, err := npmInventory(ctx)
+	if err != nil {
+		t.Fatalf("npmInventory: %v", err)
+	}
+	want := map[string]string{"pkg": "1.2.3", "@scope/n": "0.4.0"}
+	if !reflect.DeepEqual(inv, want) {
+		t.Fatalf("inv = %v; want %v", inv, want)
+	}
+
+	// Empty dependencies → empty map.
+	fake2 := &run.FakeRunner{Responses: map[string]run.Response{npmInvCmd: {Stdout: `{}`}}}
+	ctx2 := installCtx(t, "darwin", fake2)
+	inv2, err := npmInventory(ctx2)
+	if err != nil {
+		t.Fatalf("npmInventory empty: %v", err)
+	}
+	if len(inv2) != 0 {
+		t.Fatalf("empty inv = %v; want empty", inv2)
+	}
+}
+
+func TestInstallNpmPinnedMatch(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: npmJSON(map[string]string{"pkg": "1.2.3"})},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"pkg@1.2.3"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop", d.Op)
+	}
+}
+
+func TestInstallNpmPinnedMismatch(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm":             {Stdout: "/usr/bin/npm"},
+		npmInvCmd:                  {Stdout: npmJSON(map[string]string{"pkg": "1.2.0"})},
+		"npm install -g pkg@1.2.3": {},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"pkg@1.2.3"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+	if d.Detail != "npm install: pkg@1.2.3" {
+		t.Fatalf("detail = %q; want %q", d.Detail, "npm install: pkg@1.2.3")
+	}
+
+	fake.Calls = nil
+	if err := h.Apply(ctx, step); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	want := []string{"lookpath npm", "npm install -g pkg@1.2.3"}
+	if !reflect.DeepEqual(fake.Calls, want) {
+		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
+	}
+}
+
+func TestInstallNpmPinnedAbsent(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: `{"dependencies":{}}`},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"pkg@1.2.3"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+}
+
+func TestInstallNpmUnversionedAnyVersion(t *testing.T) {
+	// Backward compat: unversioned desired satisfied by any installed version.
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: npmJSON(map[string]string{"pkg": "9.9.9"})},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"pkg"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop", d.Op)
+	}
+}
+
+func TestInstallNpmScopedPinned(t *testing.T) {
+	const name = "@earendil-works/pi-coding-agent"
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: npmJSON(map[string]string{name: "1.0.0"})},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+
+	// Matching pinned → OpNoop.
+	d, err := h.Inspect(ctx, manifest.InstallStep{Npm: []string{name + "@1.0.0"}})
+	if err != nil {
+		t.Fatalf("Inspect match: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("match op = %v; want OpNoop", d.Op)
+	}
+
+	// Mismatched pinned → OpChange.
+	fake2 := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: npmJSON(map[string]string{name: "1.0.0"})},
+	}}
+	ctx2 := installCtx(t, "darwin", fake2)
+	d2, err := h.Inspect(ctx2, manifest.InstallStep{Npm: []string{name + "@1.0.1"}})
+	if err != nil {
+		t.Fatalf("Inspect mismatch: %v", err)
+	}
+	if d2.Op != engine.OpChange {
+		t.Fatalf("mismatch op = %v; want OpChange", d2.Op)
+	}
+
+	// Unversioned scoped → OpNoop at any version.
+	fake3 := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: npmJSON(map[string]string{name: "7.7.7"})},
+	}}
+	ctx3 := installCtx(t, "darwin", fake3)
+	d3, err := h.Inspect(ctx3, manifest.InstallStep{Npm: []string{name}})
+	if err != nil {
+		t.Fatalf("Inspect unversioned: %v", err)
+	}
+	if d3.Op != engine.OpNoop {
+		t.Fatalf("unversioned op = %v; want OpNoop", d3.Op)
+	}
+}
+
+func TestInstallPiPinnedMatch(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi": {Stdout: "/usr/bin/pi"},
+		"pi list":     {Stdout: "npm:pi-tmux-bridge@0.1.1\n"},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"npm:pi-tmux-bridge@0.1.1"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop", d.Op)
+	}
+}
+
+func TestInstallPiPinnedMismatch(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi":                         {Stdout: "/usr/bin/pi"},
+		"pi list":                             {Stdout: "npm:pi-tmux-bridge@0.1.1\n"},
+		"pi install npm:pi-tmux-bridge@0.1.2": {},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"npm:pi-tmux-bridge@0.1.2"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpChange {
+		t.Fatalf("op = %v; want OpChange", d.Op)
+	}
+	if d.Detail != "pi install: npm:pi-tmux-bridge@0.1.2" {
+		t.Fatalf("detail = %q", d.Detail)
+	}
+
+	fake.Calls = nil
+	if err := h.Apply(ctx, step); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	want := []string{"lookpath pi", "pi install npm:pi-tmux-bridge@0.1.2"}
+	if !reflect.DeepEqual(fake.Calls, want) {
+		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
+	}
+}
+
+func TestInstallPiUnversionedAnyVersion(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi": {Stdout: "/usr/bin/pi"},
+		"pi list":     {Stdout: "npm:pi-tmux-bridge@0.1.1\n"},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"npm:pi-tmux-bridge"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop", d.Op)
+	}
+}
+
+func TestInstallPiLocalPathUnversioned(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi": {Stdout: "/usr/bin/pi"},
+		"pi list":     {Stdout: "/Users/me/local-tool\n"},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"/Users/me/local-tool"}}
+
+	d, err := h.Inspect(ctx, step)
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("op = %v; want OpNoop", d.Op)
 	}
 }
