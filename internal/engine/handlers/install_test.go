@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 
@@ -649,24 +649,21 @@ func TestInstallNpmScopedPackage(t *testing.T) {
 // --- version-aware npm/pi backends ---
 
 func npmJSON(deps map[string]string) string {
-	var b strings.Builder
-	b.WriteString(`{"dependencies":{`)
-	first := true
-	// deterministic order not required for parsing; iterate sorted for stability.
-	keys := make([]string, 0, len(deps))
-	for k := range deps {
-		keys = append(keys, k)
+	type depEntry struct {
+		Version string `json:"version"`
 	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if !first {
-			b.WriteString(",")
-		}
-		first = false
-		b.WriteString(`"` + k + `":{"version":"` + deps[k] + `"}`)
+	type payload struct {
+		Dependencies map[string]depEntry `json:"dependencies"`
 	}
-	b.WriteString(`}}`)
-	return b.String()
+	p := payload{Dependencies: make(map[string]depEntry, len(deps))}
+	for k, v := range deps {
+		p.Dependencies[k] = depEntry{Version: v}
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		panic("npmJSON: marshal failed: " + err.Error())
+	}
+	return string(b)
 }
 
 func TestSplitNameVersion(t *testing.T) {
@@ -685,6 +682,37 @@ func TestSplitNameVersion(t *testing.T) {
 		if name != c.name || ver != c.ver {
 			t.Errorf("splitNameVersion(%q) = (%q, %q); want (%q, %q)", c.in, name, ver, c.name, c.ver)
 		}
+	}
+}
+
+func TestNpmInventoryNonJSON(t *testing.T) {
+	// Non-JSON stdout (e.g. npm warning printed to stdout) must return an error,
+	// not an empty inventory. If it returned empty, needing() would mark every
+	// desired package absent → spurious reinstall of everything.
+	nonstd := "npm warn registry Unexpected warning from registry\nnot json at all"
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		npmInvCmd: {Stdout: nonstd},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+
+	// npmInventory itself must return an error.
+	_, err := npmInventory(ctx)
+	if err == nil {
+		t.Fatal("npmInventory: expected error on non-JSON stdout, got nil")
+	}
+
+	// Inspect (via npmInspect) must propagate the error rather than returning
+	// a spurious OpChange.
+	fake2 := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath npm": {Stdout: "/usr/bin/npm"},
+		npmInvCmd:      {Stdout: nonstd},
+	}}
+	ctx2 := installCtx(t, "darwin", fake2)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Npm: []string{"typescript"}}
+	_, inspectErr := h.Inspect(ctx2, step)
+	if inspectErr == nil {
+		t.Fatal("Inspect: expected error on non-JSON npm output, got nil")
 	}
 }
 

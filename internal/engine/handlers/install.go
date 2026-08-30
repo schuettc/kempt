@@ -195,7 +195,7 @@ func npmInventory(ctx *machine.Context) (map[string]string, error) {
 		} `json:"dependencies"`
 	}
 	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
-		return inv, nil // robust: treat unparseable output as no packages
+		return nil, fmt.Errorf("npm inventory: unparseable output: %w", err)
 	}
 	for name, dep := range parsed.Dependencies {
 		if name != "" {
