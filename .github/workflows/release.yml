@@ -100,7 +100,8 @@ jobs:
           tag="${{ steps.rel.outputs.tag }}"
           version="${tag#v}"
           commit="$(git rev-parse --short HEAD)"
-          ldflags="-s -w -X github.com/schuettc/kempt/internal/version.version=${version} -X github.com/schuettc/kempt/internal/version.commit=${commit}"
+          date="$(date -u +%Y-%m-%d)"
+          ldflags="-s -w -X github.com/schuettc/kempt/internal/version.version=${version} -X github.com/schuettc/kempt/internal/version.commit=${commit} -X github.com/schuettc/kempt/internal/version.date=${date}"
           for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
             goos="${target%/*}"; goarch="${target#*/}"
             out="kempt_${goos}_${goarch}"

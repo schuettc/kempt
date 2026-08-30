@@ -38,9 +38,40 @@ func TestDispatchVersion(t *testing.T) {
 	}
 }
 
+func TestDispatchFlagVersion(t *testing.T) {
+	var out, errw bytes.Buffer
+	if got := Dispatch([]string{"--version"}, &out, &errw); got != 0 {
+		t.Fatalf("exit = %d, want 0", got)
+	}
+	if !strings.Contains(out.String(), "kempt ") {
+		t.Fatalf("stdout = %q, want version line", out.String())
+	}
+}
+
 func TestDispatchUnknownCommand(t *testing.T) {
 	var out, errw bytes.Buffer
 	if got := Dispatch([]string{"frobnicate"}, &out, &errw); got != 2 {
 		t.Fatalf("exit = %d, want 2", got)
+	}
+	if !strings.Contains(errw.String(), "kempt: unknown command") {
+		t.Fatalf("stderr = %q, want unknown command", errw.String())
+	}
+}
+
+// TestDispatchHelpListsCommandsOnce: help lists the built-ins plus kempt's own
+// commands, and update (kempt's override) appears exactly once.
+func TestDispatchHelpListsCommandsOnce(t *testing.T) {
+	var out, errw bytes.Buffer
+	if got := Dispatch([]string{"help"}, &out, &errw); got != 0 {
+		t.Fatalf("exit = %d, want 0", got)
+	}
+	text := out.String()
+	for _, name := range []string{"version", "help", "update", "plan", "apply"} {
+		if !strings.Contains(text, name) {
+			t.Fatalf("help missing %q:\n%s", name, text)
+		}
+	}
+	if n := strings.Count(text, "\n  update "); n != 1 {
+		t.Fatalf("update listed %d times, want 1:\n%s", n, text)
 	}
 }

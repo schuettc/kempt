@@ -13,22 +13,16 @@ import (
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/gitrepo"
 	"github.com/schuettc/kempt/internal/manifest"
-	"github.com/schuettc/kempt/internal/selfupdate"
-	"github.com/schuettc/kempt/internal/version"
+	tools "github.com/schuettc/tools-common"
 )
 
-func init() {
-	Register(Command{
-		Name:    "update",
-		Summary: "pull the repo, self-update the binary, and converge",
-		Run:     runUpdate,
-	})
+// selfUpdate is a seam so tests can stub the binary-replace step (which
+// otherwise reaches the network via the /dl download contract).
+var selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error) {
+	return app.SelfUpdate(out, errw)
 }
 
-// osExecutable is a seam so tests can inject a fake binary path.
-var osExecutable = os.Executable
-
-func runUpdate(args []string, out, errw io.Writer) error {
+func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	fset := flag.NewFlagSet("update", flag.ContinueOnError)
 	fset.SetOutput(io.Discard)
 	if err := fset.Parse(args); err != nil {
@@ -53,21 +47,9 @@ func runUpdate(args []string, out, errw io.Writer) error {
 		return fmt.Errorf("git pull failed: %w", err)
 	}
 
-	// 2. Self-update the binary. A non-writable exe dir is a soft failure: we
-	// still converge config. Other errors abort.
-	exe, _ := osExecutable()
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
-	updated, newVer, uerr := selfupdate.Update(selfupdate.Options{
-		Repo:     "schuettc/kempt",
-		Asset:    "kempt_{os}_{arch}.tar.gz",
-		OS:       ctx.OS,
-		Arch:     ctx.Arch,
-		Current:  version.Number(),
-		ExePath:  exe,
-		Releases: ctx.Releases,
-	})
+	// 2. Self-update the binary via the /dl download contract. A non-writable
+	// exe dir is a soft failure: we still converge config. Other errors abort.
+	updated, newVer, uerr := selfUpdate(app, out, errw)
 	if uerr != nil {
 		if isPermissionErr(uerr) {
 			fmt.Fprintf(out, "binary self-update skipped: %v\n", uerr)
