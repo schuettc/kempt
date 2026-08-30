@@ -1,0 +1,178 @@
+package manifest
+
+// Class is the safety class of a primitive step. It is a code constant derived
+// from the step kind, never a manifest field.
+type Class int
+
+const (
+	ClassSoftware Class = iota
+	ClassFiles
+	ClassReadOnly
+)
+
+type Manifest struct {
+	Spec     int
+	Packages map[string]*Package
+	Profiles map[string]*Profile
+}
+
+type Package struct {
+	Name        string
+	Description string
+	Needs       []string
+	Only        *Only
+	Steps       []Step // document order
+	Notes       []string
+}
+
+type Profile struct {
+	Name        string
+	Description string
+	Packages    []string
+}
+
+type Only struct {
+	OS   string `toml:"os"`
+	Arch string `toml:"arch"`
+}
+
+type Step interface {
+	Kind() string // "install", "symlink", ...
+	Class() Class
+}
+
+type Finding struct {
+	// Path uses per-kind step indices: packages.core.symlink[1] is the second
+	// [[packages.core.symlink]] table, regardless of other kinds interleaved.
+	Path string
+	Msg  string
+}
+
+type InstallStep struct {
+	Brew   *BrewSpec `toml:"brew"`
+	Winget []string  `toml:"winget"`
+	Apt    []string  `toml:"apt"`
+	// Npm and Pi are ADDITIVE cross-platform package sources: unlike the
+	// OS-exclusive brew/winget/apt choice (one wins per OS), a single install
+	// step may carry brew AND npm AND pi, and every present source applies.
+	Npm  []string `toml:"npm"`
+	Pi   []string `toml:"pi"`
+	Only *Only    `toml:"only"`
+}
+
+type BrewSpec struct {
+	Formulas []string `toml:"formulas"`
+	Casks    []string `toml:"casks"`
+	Taps     []string `toml:"taps"`
+}
+
+type GithubReleaseStep struct {
+	Repo  string `toml:"repo"`
+	Asset string `toml:"asset"`
+	Bin   string `toml:"bin"`
+	Only  *Only  `toml:"only"`
+}
+
+type DownloadStep struct {
+	Site    string `toml:"site"`    // e.g. "tackle.tools"
+	Tool    string `toml:"tool"`    // e.g. "proj"
+	Version string `toml:"version"` // "latest" (default when empty) or pinned "1.4.0"
+	Bin     string `toml:"bin"`     // binary inside tarball + installed name
+	Only    *Only  `toml:"only"`
+}
+
+type GitCloneStep struct {
+	Repo string `toml:"repo"`
+	To   string `toml:"to"`
+	Ref  string `toml:"ref"`
+	Only *Only  `toml:"only"`
+}
+
+type ServiceStep struct {
+	Label            string            `toml:"label"`
+	Program          []string          `toml:"program"`
+	Env              map[string]string `toml:"env"`          // EnvironmentVariables
+	Stdout           string            `toml:"stdout"`       // StandardOutPath (~ expanded)
+	Stderr           string            `toml:"stderr"`       // StandardErrorPath (~ expanded)
+	KeepAlive        *bool             `toml:"keep-alive"`   // default true when nil
+	RunAtLoad        *bool             `toml:"run-at-load"`  // default true when nil
+	ProcessType      string            `toml:"process-type"` // e.g. "Interactive"
+	ThrottleInterval *int              `toml:"throttle-interval"`
+	SessionType      string            `toml:"session-type"` // LimitLoadToSessionType, e.g. "Aqua"
+	Only             *Only             `toml:"only"`
+}
+
+type SymlinkStep struct {
+	From   string `toml:"from"`
+	To     string `toml:"to"`
+	Backup bool   `toml:"backup"`
+	Only   *Only  `toml:"only"`
+}
+
+type JSONMergeStep struct {
+	File   string         `toml:"file"`
+	Merge  map[string]any `toml:"merge"`
+	Arrays string         `toml:"arrays"` // ""|"append"|"replace"; empty == "append"
+	Only   *Only          `toml:"only"`
+}
+
+type TomlMergeStep struct {
+	File  string         `toml:"file"`
+	Merge map[string]any `toml:"merge"`
+	Only  *Only          `toml:"only"`
+}
+
+type LineInFileStep struct {
+	File string `toml:"file"`
+	Line string `toml:"line"`
+	Only *Only  `toml:"only"`
+}
+
+type VerifyStep struct {
+	CommandExists    string              `toml:"command-exists"`
+	CommandExistsAny []string            `toml:"command-exists-any"`
+	HTTPOk           string              `toml:"http-ok"`
+	SymlinkTarget    *SymlinkTargetCheck `toml:"symlink-target"`
+	VersionCurrent   *VersionCheck       `toml:"version-current"`
+	Only             *Only               `toml:"only"`
+}
+
+type SymlinkTargetCheck struct {
+	Link   string `toml:"link"`
+	Target string `toml:"target"`
+}
+
+type VersionCheck struct {
+	Repo    string `toml:"repo"`
+	Command string `toml:"command"`
+}
+
+func (InstallStep) Kind() string { return "install" }
+func (InstallStep) Class() Class { return ClassSoftware }
+
+func (GithubReleaseStep) Kind() string { return "github-release" }
+func (GithubReleaseStep) Class() Class { return ClassSoftware }
+
+func (DownloadStep) Kind() string { return "download" }
+func (DownloadStep) Class() Class { return ClassSoftware }
+
+func (GitCloneStep) Kind() string { return "git-clone" }
+func (GitCloneStep) Class() Class { return ClassSoftware }
+
+func (ServiceStep) Kind() string { return "service" }
+func (ServiceStep) Class() Class { return ClassSoftware }
+
+func (SymlinkStep) Kind() string { return "symlink" }
+func (SymlinkStep) Class() Class { return ClassFiles }
+
+func (JSONMergeStep) Kind() string { return "json-merge" }
+func (JSONMergeStep) Class() Class { return ClassFiles }
+
+func (TomlMergeStep) Kind() string { return "toml-merge" }
+func (TomlMergeStep) Class() Class { return ClassFiles }
+
+func (LineInFileStep) Kind() string { return "line-in-file" }
+func (LineInFileStep) Class() Class { return ClassFiles }
+
+func (VerifyStep) Kind() string { return "verify" }
+func (VerifyStep) Class() Class { return ClassReadOnly }

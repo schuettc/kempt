@@ -1,0 +1,52 @@
+[kempt]
+spec = 1
+
+[packages.core]
+description = "shell, prompt, history, modern CLI tools"
+
+  [[packages.core.install]]
+  brew   = { formulas = ["starship", "atuin", "ripgrep", "jq"] }
+  winget = ["BurntSushi.ripgrep.MSVC", "jqlang.jq"]
+  apt    = ["ripgrep", "jq"]
+
+  [[packages.core.symlink]]
+  from = "config/zsh"
+  to = "~/.config/zsh"
+  backup = true
+
+[packages.terminal]
+description = "Ghostty + tmux + yazi workspace"
+needs = ["core"]
+
+  [[packages.terminal.git-clone]]
+  repo = "https://github.com/tmux-plugins/tmux-resurrect"
+  to = "~/.tmux/plugins/tmux-resurrect"
+
+[packages.muster]
+description = "local multi-agent coordination bus"
+only = { os = "darwin" }
+
+  [[packages.muster.github-release]]
+  repo = "schuettc/muster"
+  asset = "muster_{os}_{arch}.tar.gz"
+  bin = "muster"
+
+  [[packages.muster.json-merge]]
+  file = "~/.claude/settings.json"
+  merge = { mcpServers.muster = { command = "muster", args = ["mcp"] } }
+
+  [[packages.muster.service]]
+  label = "tools.muster.serve"
+  program = ["muster", "serve"]
+
+  [[packages.muster.verify]]
+  command-exists = "muster"
+  version-current = { repo = "schuettc/muster", command = "muster version" }
+
+[profiles.developer]
+description = "full toolchain: terminal, editors, agents"
+packages = ["core", "terminal", "muster"]
+
+[profiles.minimal]
+description = "just a pleasant shell"
+packages = ["core"]

@@ -1,0 +1,169 @@
+name: release
+
+# A push to main that changed VERSION cuts a release; workflow_dispatch cuts an
+# rc (empty tag) or rebuilds an existing tag's assets (tag set). A merge that
+# doesn't bump VERSION tags v<VERSION>, sees it already released, and no-ops.
+#
+# workflow_dispatch does two things, chosen by whether `tag` is given (mirrors
+# the muster pilot of the family download standard):
+#   - tag set    -> rebuild assets for that EXISTING release (backfill/repair).
+#   - tag empty  -> cut a PRE-RELEASE from the branch you dispatch on, tagged
+#                   v<VERSION>-rc.<run>. This is the de-risk channel: a real,
+#                   pinnable tag with the same assets as a release, marked
+#                   pre-release so it never becomes "Latest" and never moves the
+#                   `latest` pointer. Use it to validate the whole OIDC+S3 path
+#                   before any real release.
+#
+# The VERSION file is the knob: the real path tags v<VERSION>; if that release
+# already exists it is a no-op. Binaries are cross-compiled cgo-free
+# (darwin/linux × arm64/amd64), each with a sha256 checksum, stamped with
+# version/commit via -ldflags -X into internal/version. kempt is a single,
+# UNSIGNED binary, so the whole job cross-compiles from ubuntu-latest.
+#
+# Downloads: the Publish step assumes the tools-ops Release role (OIDC, trusted
+# on this repo's `release` environment) to PutObject to the kempt.tools Downloads
+# bucket at /dl/kempt/<version>/, and moves /dl/kempt/latest only on a real,
+# non-prerelease release. Secrets: KEMPT_RELEASE_ROLE_ARN, KEMPT_DOWNLOADS_BUCKET.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to rebuild assets for. Leave EMPTY to cut a pre-release from this branch."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  # OIDC: the Publish step assumes the tools-ops Release role to write to the
+  # kempt.tools Downloads bucket. Trust is this repo's `release` environment
+  # (declared below), not a ref.
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve tag and mode
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ inputs.tag }}" ]; then
+              # Rebuild an existing release's assets. Nothing is created; the
+              # latest pointer is not touched.
+              {
+                echo "tag=${{ inputs.tag }}"
+                echo "create=false"
+                echo "prerelease=false"
+                echo "skip=false"
+              } >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            # Pre-release from whatever branch this was dispatched on. The
+            # -rc.<run> suffix keeps this off the real namespace and the run
+            # number is monotonic per workflow, so repeated dispatches never
+            # collide with each other OR with the eventual v<VERSION>.
+            {
+              echo "tag=v$(tr -d ' \n' < VERSION)-rc.${{ github.run_number }}"
+              echo "create=true"
+              echo "prerelease=true"
+              echo "skip=false"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Non-dispatch (push to main, once that trigger is restored at launch).
+          tag="v$(tr -d ' \n' < VERSION)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "VERSION $tag already released — nothing to do."
+            echo "create=false" >> "$GITHUB_OUTPUT"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "create=true" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-go@v5
+        if: steps.rel.outputs.skip == 'false'
+        with:
+          go-version-file: go.mod
+      - name: Build and package all targets
+        if: steps.rel.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          tag="${{ steps.rel.outputs.tag }}"
+          version="${tag#v}"
+          commit="$(git rev-parse --short HEAD)"
+          ldflags="-s -w -X github.com/schuettc/kempt/internal/version.version=${version} -X github.com/schuettc/kempt/internal/version.commit=${commit}"
+          for target in darwin/arm64 darwin/amd64 linux/amd64 linux/arm64; do
+            goos="${target%/*}"; goarch="${target#*/}"
+            out="kempt_${goos}_${goarch}"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
+              go build -trimpath -ldflags "$ldflags" -o "dist/${out}/kempt" ./cmd/kempt
+            tar -C "dist/${out}" -czf "dist/${out}.tar.gz" kempt
+          done
+          # shellcheck disable=SC2035  # *.tar.gz inside cd dist; no dash-prefixed names possible
+          (cd dist && (shasum -a 256 *.tar.gz 2>/dev/null || sha256sum *.tar.gz) > checksums.txt)
+      - name: Create the release
+        if: steps.rel.outputs.skip == 'false' && steps.rel.outputs.create == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prerelease=""
+          [ "${{ steps.rel.outputs.prerelease }}" = "true" ] && prerelease="--prerelease"
+          gh release create "${{ steps.rel.outputs.tag }}" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "kempt ${{ steps.rel.outputs.tag }}" --generate-notes $prerelease
+      - name: Upload assets
+        if: steps.rel.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.rel.outputs.tag }}" dist/*.tar.gz dist/checksums.txt --clobber --repo "$GITHUB_REPOSITORY"
+
+      # Family download standard: versioned paths are immutable + long-TTL; the
+      # latest pointer is short-TTL and invalidated on write so it is never
+      # stale. The Release role can ONLY PutObject to Downloads and
+      # CreateInvalidation on the kempt.tools distribution — no other access.
+      - name: Configure AWS credentials (downloads)
+        if: steps.rel.outputs.skip == 'false'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.KEMPT_RELEASE_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Publish binaries to kempt.tools/dl
+        if: steps.rel.outputs.skip == 'false'
+        env:
+          BUCKET: ${{ secrets.KEMPT_DOWNLOADS_BUCKET }}
+          TAG: ${{ steps.rel.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"   # bare semver; the family download contract keys paths on it
+          for f in dist/kempt_*.tar.gz; do
+            base="$(basename "$f")"
+            # shasum two-space format, naming the bare asset (not the dist/ path).
+            (shasum -a 256 "$f" 2>/dev/null || sha256sum "$f") | awk -v n="$base" '{print $1"  "n}' > "$f.sha256"
+            aws s3 cp "$f"          "s3://$BUCKET/dl/kempt/$version/$base"        --cache-control 'public,max-age=31536000,immutable'
+            aws s3 cp "$f.sha256"   "s3://$BUCKET/dl/kempt/$version/$base.sha256" --cache-control 'public,max-age=31536000,immutable' --content-type text/plain
+          done
+      - name: Update latest pointer + invalidate
+        # Only a real, non-prerelease release moves `latest`. A dispatch
+        # asset-rebuild (create=false) and an -rc pre-release (prerelease=true)
+        # both publish their versioned paths above but must never regress or
+        # hijack the pointer — mirrors GitHub's "pre-release never becomes Latest".
+        if: steps.rel.outputs.skip == 'false' && steps.rel.outputs.create == 'true' && steps.rel.outputs.prerelease == 'false'
+        env:
+          BUCKET: ${{ secrets.KEMPT_DOWNLOADS_BUCKET }}
+          TAG: ${{ steps.rel.outputs.tag }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          printf '%s' "$version" | aws s3 cp - "s3://$BUCKET/dl/kempt/latest" \
+            --content-type text/plain --cache-control 'public,max-age=60,must-revalidate'
+          aws cloudfront create-invalidation --distribution-id E309WZW10YNEN --paths '/dl/kempt/latest'

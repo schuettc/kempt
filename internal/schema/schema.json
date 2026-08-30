@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/schuettc/kempt/schema/kempt.json",
+  "title": "kempt.toml",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "spec": { "type": "integer", "const": 1 }
+      }
+    },
+    "packages": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/package" }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/profile" }
+    }
+  },
+  "$defs": {
+    "only": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "os": { "type": "string" },
+        "arch": { "type": "string" }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "packages": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "needs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "only": { "$ref": "#/$defs/only" },
+        "install": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/installStep" }
+        },
+        "github-release": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/githubReleaseStep" }
+        },
+        "download": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/downloadStep" }
+        },
+        "git-clone": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/gitCloneStep" }
+        },
+        "service": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/serviceStep" }
+        },
+        "symlink": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/symlinkStep" }
+        },
+        "json-merge": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/jsonMergeStep" }
+        },
+        "toml-merge": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/tomlMergeStep" }
+        },
+        "line-in-file": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/lineInFileStep" }
+        },
+        "verify": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/verifyStep" }
+        }
+      }
+    },
+    "installStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "brew": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "formulas": { "type": "array", "items": { "type": "string" } },
+            "casks": { "type": "array", "items": { "type": "string" } },
+            "taps": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "winget": { "type": "array", "items": { "type": "string" } },
+        "apt": { "type": "array", "items": { "type": "string" } },
+        "npm": { "type": "array", "items": { "type": "string" } },
+        "pi": { "type": "array", "items": { "type": "string" } },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "githubReleaseStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repo": { "type": "string" },
+        "asset": { "type": "string" },
+        "bin": { "type": "string" },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "downloadStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "site": { "type": "string" },
+        "tool": { "type": "string" },
+        "version": { "type": "string" },
+        "bin": { "type": "string" },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "gitCloneStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repo": { "type": "string" },
+        "to": { "type": "string" },
+        "ref": { "type": "string" },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "serviceStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "program": { "type": "array", "items": { "type": "string" } },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "stdout": { "type": "string" },
+        "stderr": { "type": "string" },
+        "keep-alive": { "type": "boolean" },
+        "run-at-load": { "type": "boolean" },
+        "process-type": { "type": "string" },
+        "throttle-interval": { "type": "integer" },
+        "session-type": { "type": "string" },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "symlinkStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "backup": { "type": "boolean" },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "jsonMergeStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "merge": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "arrays": { "enum": ["append", "replace"] },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "tomlMergeStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "merge": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "lineInFileStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string" },
+        "line": { "type": "string" },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    },
+    "verifyStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command-exists": { "type": "string" },
+        "command-exists-any": { "type": "array", "items": { "type": "string" } },
+        "http-ok": { "type": "string" },
+        "symlink-target": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "link": { "type": "string" },
+            "target": { "type": "string" }
+          }
+        },
+        "version-current": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repo": { "type": "string" },
+            "command": { "type": "string" }
+          }
+        },
+        "only": { "$ref": "#/$defs/only" }
+      }
+    }
+  }
+}
