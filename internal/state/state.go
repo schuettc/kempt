@@ -10,8 +10,11 @@ import (
 
 // State holds the user's machine selection.
 type State struct {
-	RepoDir        string   `json:"repo_dir"`
-	RepoURL        string   `json:"repo_url,omitempty"`
+	RepoDir string `json:"repo_dir"`
+	RepoURL string `json:"repo_url,omitempty"`
+	// RepoKind is "git" (default/empty) or "tarball"; it tells `update` whether
+	// to git-pull the repo or re-fetch and re-extract the tarball at RepoURL.
+	RepoKind       string   `json:"repo_kind,omitempty"`
 	Profile        string   `json:"profile,omitempty"`
 	Packages       []string `json:"packages"`
 	AutoApplyFiles bool     `json:"auto_apply_files"`
