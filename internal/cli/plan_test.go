@@ -133,3 +133,13 @@ description = "my package"
 			code, out.String(), errw.String())
 	}
 }
+
+func TestNewContextAbsolutizesRepoDir(t *testing.T) {
+	ctx, err := newContext(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(ctx.RepoDir) {
+		t.Fatalf("RepoDir = %q, want absolute", ctx.RepoDir)
+	}
+}
