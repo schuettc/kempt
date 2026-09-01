@@ -166,3 +166,22 @@ func TestTOMLMergeDetailBase(t *testing.T) {
 		t.Fatalf("detail = %q, want %q", d.Detail, "toml-merge "+f)
 	}
 }
+
+func TestTOMLMergeExpandsHomeToken(t *testing.T) {
+	h := tomlHandler(t)
+	ctx := testCtx(t)
+	ctx.Home = "/Users/tester"
+	f := filepath.Join(ctx.RepoDir, "config.toml")
+	writeTOML(t, f, map[string]any{})
+	s := manifest.TomlMergeStep{File: f, Merge: map[string]any{
+		"mcp_servers": map[string]any{"muster": map[string]any{"command": "${HOME}/.local/bin/muster"}},
+	}}
+	if err := h.Apply(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	got := readTOML(t, f)
+	srv := got["mcp_servers"].(map[string]any)["muster"].(map[string]any)
+	if want := "/Users/tester/.local/bin/muster"; srv["command"] != want {
+		t.Fatalf("command = %q, want %q", srv["command"], want)
+	}
+}
