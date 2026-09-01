@@ -22,11 +22,28 @@ Then point kempt at your config repo:
 kempt init <repo-url>
 ```
 
-`kempt init` clones the manifest repo (default `~/.config/kempt/repo`), walks an
+`kempt init` fetches the manifest repo (default `~/.config/kempt/repo`), walks an
 interactive picker to choose a profile and refine the exact set of packages,
 saves your selection, and applies it to converge the machine. Pass `-profile
 <name> -yes` to init non-interactively, or `-dir` to clone somewhere other than
 the default.
+
+The source can be a **git repo** (cloned; `kempt update` pulls it) or a
+**gzipped tarball URL** ending in `.tar.gz`/`.tgz` — e.g. a GitHub archive
+`https://github.com/<you>/<repo>/archive/refs/heads/main.tar.gz`. A tarball is
+fetched and extracted (no git required; the wrapper directory is stripped), and
+`kempt update` re-fetches and re-extracts it. Sharing a full config tree does
+not require a cloneable git repo.
+
+For a **self-contained** manifest (software installs + config merges + downloads,
+with no repo-relative `symlink`/`git-clone` file sources), you can skip the repo
+entirely and point `plan`/`apply`/`verify`/`lint` straight at a single file over
+HTTP or stdin:
+
+```sh
+kempt plan -manifest https://example.com/kempt.toml
+curl -fsSL https://example.com/kempt.toml | kempt apply -manifest - -yes
+```
 
 Once a selection is saved, the day-to-day commands operate on it without
 repeating `-manifest`/`-profile`:
