@@ -96,6 +96,23 @@ vendor need only publish files at these paths:
 `<os>`/`<arch>` use kempt's normalized platform tokens (same as `github-release`
 asset templating).
 
+### `download` version field
+
+The `version` field controls whether a download rolls automatically or locks to a
+manifest-pinned version. When omitted, `version` defaults to `"latest"`.
+
+**`version = "latest"`** (rolling): The download fetches the latest available
+release each time. In `plan` output, it is presence-only — `plan` shows it only
+if the tool is already installed, never as a change to apply. Use `kempt outdated`
+to check for new releases and `kempt upgrade` to install them; these are the only
+commands that reach the network for tool versions.
+
+**`version = "x.y.z"`** (pinned): The download locks to the specific semver. If
+the installed version differs, `plan` shows `upgrade <bin> <old> -> <pin>` drift
+offline, and `apply` converges to the pinned version (including a downgrade if
+necessary). Version currency is managed separately via `kempt upgrade` and `kempt
+outdated`.
+
 Safety class comes from kempt's primitive table — a manifest cannot declare its
 own software installs "safe."
 
