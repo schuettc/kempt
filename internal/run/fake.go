@@ -1,10 +1,15 @@
 package run
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
 )
+
+// ErrForTest is a sentinel error for scripting failures in FakeRunner
+// Responses.
+var ErrForTest = errors.New("forced error for tests")
 
 // FakeRunner is a scripted Runner for use in tests.
 //
