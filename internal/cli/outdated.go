@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ func runOutdated(args []string, out, errw io.Writer) error {
 	manifestFlag := fs.String("manifest", "", "path to manifest")
 	profileFlag := fs.String("profile", "", "profile to select")
 	packagesFlag := fs.String("packages", "", "comma-separated package names")
+	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
 	if err := fs.Parse(args); err != nil {
 		return UsageError{Msg: err.Error()}
 	}
@@ -31,15 +33,49 @@ func runOutdated(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	if *jsonFlag {
+		return printOutdatedJSON(out, statuses)
+	}
+
 	behind := 0
+	errored := 0
 	for _, s := range statuses {
-		if s.Behind {
+		switch {
+		case s.Err != nil:
+			fmt.Fprintf(out, "%s  ? (could not resolve latest: %v)\n", s.Tool, s.Err)
+			errored++
+		case s.Behind:
 			fmt.Fprintf(out, "%s  %s -> %s  (%s)\n", s.Tool, s.Installed, s.Target, s.Mode)
 			behind++
 		}
 	}
-	if behind == 0 {
+	if behind == 0 && errored == 0 {
 		fmt.Fprintln(out, "everything up to date")
 	}
 	return nil
+}
+
+// outdatedJSON is the --json shape for one tool's status.
+type outdatedJSON struct {
+	Tool      string `json:"tool"`
+	Installed string `json:"installed"`
+	Target    string `json:"target"`
+	Mode      string `json:"mode"`
+	Behind    bool   `json:"behind"`
+	Error     string `json:"error,omitempty"`
+}
+
+func printOutdatedJSON(out io.Writer, statuses []toolStatus) error {
+	rows := make([]outdatedJSON, 0, len(statuses))
+	for _, s := range statuses {
+		row := outdatedJSON{Tool: s.Tool, Installed: s.Installed, Target: s.Target, Mode: s.Mode, Behind: s.Behind}
+		if s.Err != nil {
+			row.Error = s.Err.Error()
+		}
+		rows = append(rows, row)
+	}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(rows)
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -118,5 +119,87 @@ spec = 1
 	}
 	if !strings.Contains(out.String(), "everything up to date") {
 		t.Fatalf("want up to date message, got: %q", out.String())
+	}
+}
+
+// TestOutdatedReportsPerToolErrorNonFatal covers I1: one tool whose latest
+// pointer can't be resolved must print a per-tool error line, while a second,
+// resolvable tool that is behind still prints its own standing.
+func TestOutdatedReportsPerToolErrorNonFatal(t *testing.T) {
+	dir := writeTempManifest(t, `
+[kempt]
+spec = 1
+[packages.terminal]
+  [[packages.terminal.download]]
+  site = "tackle.tools"
+  tool = "unreachable"
+  version = "latest"
+  bin = "unreachable"
+  [[packages.terminal.download]]
+  site = "tackle.tools"
+  tool = "proj"
+  version = "latest"
+  bin = "proj"
+`)
+	restore := stubContext(t, dir, map[string]string{
+		"unreachable version": "unreachable 0.1.0 (a, d)\n",
+		"proj version":        "proj 0.1.1 (a, d)\n",
+	}, map[string]string{
+		// "unreachable"'s pointer is intentionally not scripted.
+		"https://tackle.tools/dl/proj/latest": "0.1.2\n",
+	})
+	defer restore()
+
+	var out, errw bytes.Buffer
+	if err := runOutdated([]string{"-manifest", dir + "/kempt.toml", "-packages", "terminal"}, &out, &errw); err != nil {
+		t.Fatalf("outdated must not fail on a per-tool network error: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "unreachable") || !strings.Contains(got, "could not resolve latest") {
+		t.Fatalf("want a per-tool error line for unreachable, got: %q", got)
+	}
+	if !strings.Contains(got, "proj") || !strings.Contains(got, "0.1.1") || !strings.Contains(got, "0.1.2") {
+		t.Fatalf("want proj's standing to still print, got: %q", got)
+	}
+	if strings.Contains(got, "everything up to date") {
+		t.Fatalf("an errored tool must not count as up to date, got: %q", got)
+	}
+}
+
+// TestOutdatedJSON covers M3: -json emits a JSON array with the expected
+// fields for a behind tool.
+func TestOutdatedJSON(t *testing.T) {
+	dir := writeTempManifest(t, `
+[kempt]
+spec = 1
+[packages.terminal]
+  [[packages.terminal.download]]
+  site = "tackle.tools"
+  tool = "proj"
+  version = "latest"
+  bin = "proj"
+`)
+	restore := stubContext(t, dir, map[string]string{
+		"proj version": "proj 0.1.1 (a, d)\n",
+	}, map[string]string{
+		"https://tackle.tools/dl/proj/latest": "0.1.2\n",
+	})
+	defer restore()
+
+	var out, errw bytes.Buffer
+	if err := runOutdated([]string{"-manifest", dir + "/kempt.toml", "-packages", "terminal", "-json"}, &out, &errw); err != nil {
+		t.Fatal(err)
+	}
+
+	var rows []outdatedJSON
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatalf("-json output is not valid JSON: %v\noutput: %s", err, out.String())
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d: %+v", len(rows), rows)
+	}
+	r := rows[0]
+	if r.Tool != "proj" || r.Installed != "0.1.1" || r.Target != "0.1.2" || r.Mode != "latest" || !r.Behind || r.Error != "" {
+		t.Fatalf("unexpected row: %+v", r)
 	}
 }

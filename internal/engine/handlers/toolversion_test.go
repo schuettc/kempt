@@ -49,3 +49,23 @@ func TestLatestVersion(t *testing.T) {
 		t.Fatalf("got (%q,%v), want (0.1.2,nil)", v, err)
 	}
 }
+
+func TestSemverNewer(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want bool
+	}{
+		{"0.1.2", "0.1.1", true},
+		{"0.1.1", "0.1.2", false},
+		{"0.1.1", "0.1.1", false},
+		{"0.7.0", "0.7.0-schuettc.2", true},
+		{"0.7.0-schuettc.2", "0.7.0", false},
+		{"not-a-version", "0.1.1", false},
+		{"0.1.1", "not-a-version", false},
+	}
+	for _, c := range cases {
+		if got := SemverNewer(c.a, c.b); got != c.want {
+			t.Errorf("SemverNewer(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}

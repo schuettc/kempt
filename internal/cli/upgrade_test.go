@@ -140,6 +140,52 @@ spec = 1
 	}
 }
 
+// TestUpgradeSkipsUnresolvableTool covers I1: a "latest" tool whose pointer
+// can't be resolved must be skipped with a warning, while a second,
+// resolvable behind tool is still upgraded — upgrade must not abort.
+func TestUpgradeSkipsUnresolvableTool(t *testing.T) {
+	dir := writeTempManifest(t, `
+[kempt]
+spec = 1
+[packages.terminal]
+  [[packages.terminal.download]]
+  site = "tackle.tools"
+  tool = "unreachable"
+  version = "latest"
+  bin = "unreachable"
+  [[packages.terminal.download]]
+  site = "tackle.tools"
+  tool = "proj"
+  version = "latest"
+  bin = "proj"
+`)
+	asset, sum := fakeTarball(t, "proj", "0.1.2-binary-bytes")
+	restore := stubContext(t, dir,
+		map[string]string{
+			"unreachable version": "unreachable 0.1.0 (a, d)\n",
+			"proj version":        "proj 0.1.1 (a, d)\n",
+		},
+		map[string]string{
+			// "unreachable"'s pointer is intentionally not scripted.
+			"https://tackle.tools/dl/proj/latest":                                "0.1.2\n",
+			"https://tackle.tools/dl/proj/0.1.2/proj_darwin_arm64.tar.gz":        asset,
+			"https://tackle.tools/dl/proj/0.1.2/proj_darwin_arm64.tar.gz.sha256": sum,
+		})
+	defer restore()
+
+	var out, errw bytes.Buffer
+	if err := runUpgrade([]string{"-manifest", dir + "/kempt.toml", "-packages", "terminal", "-yes"}, &out, &errw); err != nil {
+		t.Fatalf("upgrade must not abort on an unresolvable tool: %v (%s)", err, errw.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "skipping unreachable") || !strings.Contains(got, "could not resolve latest") {
+		t.Fatalf("want a skip warning for unreachable, got: %q", got)
+	}
+	if !strings.Contains(got, "upgraded proj to 0.1.2") {
+		t.Fatalf("want proj still upgraded, got: %q", got)
+	}
+}
+
 func TestUpgradeDeclineAborts(t *testing.T) {
 	dir := writeTempManifest(t, `
 [kempt]

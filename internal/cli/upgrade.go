@@ -43,7 +43,14 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 
 	var todo []toolStatus
 	for _, s := range statuses {
-		if s.Behind && (len(only) == 0 || only[s.Tool]) {
+		if len(only) != 0 && !only[s.Tool] {
+			continue
+		}
+		if s.Err != nil {
+			fmt.Fprintf(out, "skipping %s: could not resolve latest: %v\n", s.Tool, s.Err)
+			continue
+		}
+		if s.Behind {
 			todo = append(todo, s)
 		}
 	}

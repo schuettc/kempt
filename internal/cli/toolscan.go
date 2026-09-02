@@ -52,9 +52,10 @@ type toolStatus struct {
 	Tool, Bin, Site string
 	Mode            string // "pinned" | "latest"
 	Installed       string // "" when unknown
-	Target          string // pin, or resolved latest
-	Behind          bool   // Known && Installed != Target
+	Target          string // pin, or resolved latest; "" when Err is set
+	Behind          bool   // see scanTools for the per-mode rule
 	Known           bool   // installed version was parseable
+	Err             error  // set when a "latest" tool's pointer could not be resolved
 }
 
 // scanTools walks every download step in the selected packages and reports its
@@ -62,6 +63,12 @@ type toolStatus struct {
 // /dl/<tool>/latest over the network (this is an outdated/upgrade path, which
 // is allowed to). A tool whose installed version can't be parsed is Known=false
 // and never Behind.
+//
+// A network failure resolving a "latest" tool's pointer is reported on that
+// tool's status (Err set, Target empty, Behind false) rather than aborting
+// the whole scan — one unreachable site must never hide the standing of
+// every other tool. scanTools itself only returns a non-nil error for
+// failures unrelated to a single tool's latest lookup.
 func scanTools(ctx *machine.Context, selected []*manifest.Package) ([]toolStatus, error) {
 	var out []toolStatus
 	for _, pkg := range selected {
@@ -75,15 +82,17 @@ func scanTools(ctx *machine.Context, selected []*manifest.Package) ([]toolStatus
 			if handlers.IsPinnedVersion(st.Version) {
 				ts.Mode = "pinned"
 				ts.Target = st.Version
+				ts.Behind = known && installed != ts.Target
 			} else {
 				ts.Mode = "latest"
 				latest, err := handlers.LatestVersion(ctx, st.Site, st.Tool)
 				if err != nil {
-					return nil, err
+					ts.Err = err
+				} else {
+					ts.Target = latest
+					ts.Behind = known && handlers.SemverNewer(ts.Target, installed)
 				}
-				ts.Target = latest
 			}
-			ts.Behind = known && installed != ts.Target
 			out = append(out, ts)
 		}
 	}
