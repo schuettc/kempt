@@ -1,2 +1,5 @@
 /kempt
 /dist/
+
+# Superpowers SDD workspace (ledgers, briefs, reports, review diffs) — scratch, never committed
+.superpowers/
