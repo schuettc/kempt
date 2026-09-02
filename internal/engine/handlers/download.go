@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/schuettc/kempt/internal/engine"
 	"github.com/schuettc/kempt/internal/machine"
@@ -34,6 +33,18 @@ func (downloadHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.De
 	bin := binPath(ctx, st.Bin)
 
 	if _, err := os.Stat(bin); err == nil {
+		// Present. For a pinned version, compare the installed binary's
+		// reported version against the pin — OFFLINE (a local `<bin> version`
+		// probe, no Releases call). "latest" tools stay presence-only so plan
+		// never churns when upstream releases.
+		if IsPinnedVersion(st.Version) {
+			if installed, known := InstalledToolVersion(ctx, st.Bin); known && installed != st.Version {
+				return engine.Delta{
+					Op:     engine.OpChange,
+					Detail: fmt.Sprintf("upgrade %s %s -> %s", st.Bin, installed, st.Version),
+				}, nil
+			}
+		}
 		return engine.Delta{Op: engine.OpNoop, Detail: fmt.Sprintf("download %s", st.Bin)}, nil
 	} else if !os.IsNotExist(err) {
 		return engine.Delta{}, err
@@ -52,12 +63,12 @@ func (downloadHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 	st := s.(manifest.DownloadStep)
 
 	ver := st.Version
-	if ver == "" || ver == "latest" {
-		body, err := ctx.Releases.Download("https://" + st.Site + "/dl/" + st.Tool + "/latest")
+	if !IsPinnedVersion(ver) {
+		latest, err := LatestVersion(ctx, st.Site, st.Tool)
 		if err != nil {
 			return err
 		}
-		ver = strings.TrimSpace(string(body))
+		ver = latest
 	}
 
 	assetName := st.Tool + "_" + ctx.OS + "_" + ctx.Arch + ".tar.gz"

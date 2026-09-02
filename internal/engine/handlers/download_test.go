@@ -7,9 +7,68 @@ import (
 	"testing"
 
 	"github.com/schuettc/kempt/internal/engine"
+	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 	"github.com/schuettc/kempt/internal/release"
+	"github.com/schuettc/kempt/internal/run"
 )
+
+// mustStatBinPresent makes os.Stat(binPath(ctx, bin)) succeed by creating the
+// file under a real temp dir. Sets ctx.Home to a fresh t.TempDir() so tests
+// exercising the real filesystem check don't touch the caller's ctx.Home.
+func mustStatBinPresent(t *testing.T, ctx *machine.Context, bin string) {
+	t.Helper()
+	ctx.Home = t.TempDir()
+	p := binPath(ctx, bin)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDownloadInspectPinDrift(t *testing.T) {
+	// proj present at 0.1.1, manifest pins 0.1.2 -> OpChange upgrade
+	fr := &run.FakeRunner{Responses: map[string]run.Response{}}
+	ctx := ctxWith(fr, nil)
+	mustStatBinPresent(t, ctx, "proj")
+	fr.Responses[binPath(ctx, "proj")+" version"] = run.Response{Stdout: "proj 0.1.1 (abc, 2026-09-01)\n"}
+	st := manifest.DownloadStep{Site: "tackle.tools", Tool: "proj", Version: "0.1.2", Bin: "proj"}
+
+	d, err := downloadHandler{}.Inspect(ctx, st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpChange || d.Detail != "upgrade proj 0.1.1 -> 0.1.2" {
+		t.Fatalf("got (%v,%q)", d.Op, d.Detail)
+	}
+}
+
+func TestDownloadInspectPinMatchNoop(t *testing.T) {
+	fr := &run.FakeRunner{Responses: map[string]run.Response{}}
+	ctx := ctxWith(fr, nil)
+	mustStatBinPresent(t, ctx, "proj")
+	fr.Responses[binPath(ctx, "proj")+" version"] = run.Response{Stdout: "proj 0.1.2 (abc, 2026-09-02)\n"}
+	st := manifest.DownloadStep{Site: "tackle.tools", Tool: "proj", Version: "0.1.2", Bin: "proj"}
+	d, _ := downloadHandler{}.Inspect(ctx, st)
+	if d.Op != engine.OpNoop {
+		t.Fatalf("pin match should noop, got %v", d.Op)
+	}
+}
+
+func TestDownloadInspectLatestPresenceOnly(t *testing.T) {
+	// latest present -> noop, and Inspect makes NO release calls (nil Releases proves it)
+	fr := &run.FakeRunner{Responses: map[string]run.Response{}}
+	ctx := ctxWith(fr, nil) // nil Releases: a network call would panic
+	mustStatBinPresent(t, ctx, "proj")
+	fr.Responses[binPath(ctx, "proj")+" version"] = run.Response{Stdout: "proj 0.1.1 (abc, 2026)\n"}
+	st := manifest.DownloadStep{Site: "tackle.tools", Tool: "proj", Version: "latest", Bin: "proj"}
+	d, _ := downloadHandler{}.Inspect(ctx, st)
+	if d.Op != engine.OpNoop {
+		t.Fatalf("latest present should noop, got %v", d.Op)
+	}
+}
 
 func TestDownloadInspect(t *testing.T) {
 	// FakeReleases with no files: Inspect must make no Releases calls.
