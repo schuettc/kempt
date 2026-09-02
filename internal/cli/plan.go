@@ -2,15 +2,12 @@ package cli
 
 import (
 	"flag"
-	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"github.com/schuettc/kempt/internal/engine"
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/machine"
-	"github.com/schuettc/kempt/internal/manifest"
 	"github.com/schuettc/kempt/internal/run"
 )
 
@@ -40,29 +37,7 @@ func runPlan(args []string, out, errw io.Writer) error {
 		return UsageError{Msg: err.Error()}
 	}
 
-	st, existed, err := loadState()
-	if err != nil {
-		return err
-	}
-	manifestPath := resolveManifest(*manifestFlag, st, existed)
-	profile, packages := resolveSelection(*profileFlag, splitPackages(*packagesFlag), st, existed)
-
-	src, repoDir, name, err := loadManifestSource(manifestPath, os.Stdin)
-	if err != nil {
-		return UsageError{Msg: err.Error()}
-	}
-	m, findings := manifest.Parse(src)
-	if m != nil {
-		findings = append(findings, manifest.Validate(m)...)
-	}
-	if len(findings) > 0 {
-		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
-		}
-		return fmt.Errorf("manifest has findings; run kempt lint")
-	}
-
-	ctx, err := newContext(repoDir)
+	_, selected, ctx, err := loadSelectedContext(*manifestFlag, *profileFlag, *packagesFlag, errw)
 	if err != nil {
 		return err
 	}
@@ -71,10 +46,6 @@ func runPlan(args []string, out, errw io.Writer) error {
 	}
 	if *archFlag != "" {
 		ctx.Arch = *archFlag
-	}
-	selected, err := engine.Select(m, profile, packages)
-	if err != nil {
-		return UsageError{Msg: err.Error()}
 	}
 	plan, err := engine.BuildPlan(ctx, selected)
 	if err != nil {

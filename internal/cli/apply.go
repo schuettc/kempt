@@ -18,9 +18,22 @@ func init() {
 	Register(Command{Name: "apply", Summary: "apply the plan to converge the machine", Run: runApply})
 }
 
-// stdin is the reader used for the apply confirmation prompt. It is a package
-// var so tests can inject a scripted response.
+// stdin is the reader used for confirmation prompts (apply, upgrade). It is a
+// package var so tests can inject a scripted response.
 var stdin io.Reader = os.Stdin
+
+// confirm reads a single line from stdin and reports whether it was an
+// affirmative response ("y" or "yes", case-insensitive). Shared by apply's
+// and upgrade's confirmation prompts.
+func confirm() bool {
+	line, _ := bufio.NewReader(stdin).ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
+}
 
 func runApply(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
@@ -85,11 +98,7 @@ func runApply(args []string, out, errw io.Writer) error {
 
 	if !*yes {
 		fmt.Fprintf(out, "apply %d changes? [y/N] ", changes)
-		line, _ := bufio.NewReader(stdin).ReadString('\n')
-		switch strings.ToLower(strings.TrimSpace(line)) {
-		case "y", "yes":
-			// proceed
-		default:
+		if !confirm() {
 			fmt.Fprintln(out, "aborted")
 			return fmt.Errorf("aborted")
 		}
