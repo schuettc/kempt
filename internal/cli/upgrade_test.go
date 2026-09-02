@@ -124,7 +124,7 @@ spec = 1
 			"https://tackle.tools/dl/proj/latest":                                "0.1.2\n",
 			"https://tackle.tools/dl/proj/0.1.2/proj_darwin_arm64.tar.gz":        projAsset,
 			"https://tackle.tools/dl/proj/0.1.2/proj_darwin_arm64.tar.gz.sha256": projSum,
-			"https://tackle.tools/dl/other/latest":                              "3.0.0\n",
+			"https://tackle.tools/dl/other/latest":                               "3.0.0\n",
 		})
 	defer restore()
 

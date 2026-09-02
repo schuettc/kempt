@@ -12,7 +12,7 @@ import (
 func TestScanTools(t *testing.T) {
 	home := t.TempDir()
 	fr := &run.FakeRunner{Responses: map[string]run.Response{
-		home + "/.local/bin/proj version":    {Stdout: "proj 0.1.1 (a, d)\n"},   // latest tool, behind
+		home + "/.local/bin/proj version":    {Stdout: "proj 0.1.1 (a, d)\n"},    // latest tool, behind
 		home + "/.local/bin/scratch version": {Stdout: "scratch 0.5.1 (a, d)\n"}, // pinned, matches
 	}}
 	rel := release.FakeReleases{Files: map[string][]byte{
@@ -48,7 +48,7 @@ func TestScanToolsPerToolNetworkFailureNonFatal(t *testing.T) {
 	home := t.TempDir()
 	fr := &run.FakeRunner{Responses: map[string]run.Response{
 		home + "/.local/bin/unreachable version": {Stdout: "unreachable 0.1.0 (a, d)\n"},
-		home + "/.local/bin/proj version":         {Stdout: "proj 0.1.1 (a, d)\n"},
+		home + "/.local/bin/proj version":        {Stdout: "proj 0.1.1 (a, d)\n"},
 	}}
 	// Files intentionally omits the "unreachable" pointer so Download errors.
 	rel := release.FakeReleases{Files: map[string][]byte{

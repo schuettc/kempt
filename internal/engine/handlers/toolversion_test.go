@@ -14,9 +14,9 @@ func ctxWith(r run.Runner, rel release.Releases) *machine.Context {
 
 func TestInstalledToolVersion(t *testing.T) {
 	fr := &run.FakeRunner{Responses: map[string]run.Response{
-		"/home/x/.local/bin/proj version":  {Stdout: "proj 0.1.2 (9f3a22a, 2026-09-02)\n"},
-		"/home/x/.local/bin/dev version":   {Stdout: "dev dev\n"},
-		"/home/x/.local/bin/gone version":  {Err: run.ErrForTest},
+		"/home/x/.local/bin/proj version": {Stdout: "proj 0.1.2 (9f3a22a, 2026-09-02)\n"},
+		"/home/x/.local/bin/dev version":  {Stdout: "dev dev\n"},
+		"/home/x/.local/bin/gone version": {Err: run.ErrForTest},
 	}}
 	ctx := ctxWith(fr, nil)
 
