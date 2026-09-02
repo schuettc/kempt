@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/schuettc/kempt/internal/engine"
@@ -54,9 +53,15 @@ func runApply(args []string, out, errw io.Writer) error {
 	manifestPath := resolveManifest(*manifestFlag, st, existed)
 	profile, packages := resolveSelection(*profileFlag, splitPackages(*packagesFlag), st, existed)
 
-	src, err := os.ReadFile(manifestPath)
+	// A stdin manifest consumes the same stream the confirmation prompt reads,
+	// so it cannot be applied interactively — require -yes.
+	if manifestPath == "-" && !*yes {
+		return UsageError{Msg: "reading the manifest from stdin (-manifest -) requires -yes"}
+	}
+
+	src, repoDir, name, err := loadManifestSource(manifestPath, stdin)
 	if err != nil {
-		return UsageError{Msg: fmt.Sprintf("cannot read %s: %v", manifestPath, err)}
+		return UsageError{Msg: err.Error()}
 	}
 	m, findings := manifest.Parse(src)
 	if m != nil {
@@ -64,12 +69,12 @@ func runApply(args []string, out, errw io.Writer) error {
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
+			fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
 		}
 		return fmt.Errorf("manifest has findings; run kempt lint")
 	}
 
-	ctx, err := newContext(filepath.Dir(manifestPath))
+	ctx, err := newContext(repoDir)
 	if err != nil {
 		return err
 	}

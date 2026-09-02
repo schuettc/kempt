@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"io"
+	"path/filepath"
 
 	"github.com/schuettc/kempt/internal/engine"
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
@@ -17,7 +18,11 @@ func init() {
 // newContext builds a machine.Context for a repo directory. It is a package var
 // so tests can inject a Context backed by FakeRunner/FakeReleases.
 var newContext = func(repoDir string) (*machine.Context, error) {
-	return machine.New(repoDir, run.RealRunner{})
+	abs, err := filepath.Abs(repoDir)
+	if err != nil {
+		return nil, err
+	}
+	return machine.New(abs, run.RealRunner{})
 }
 
 func runPlan(args []string, out, errw io.Writer) error {

@@ -41,7 +41,7 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid JSON)"}, nil
 	}
 
-	desired := toAny(st.Merge)
+	desired := expandHome(toAny(st.Merge), ctx.Home)
 	replace := st.Arrays == "replace"
 	if isSubset(desired, current, replace) {
 		return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
@@ -70,7 +70,7 @@ func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 		return fmt.Errorf("existing file is not valid JSON: %s", file)
 	}
 
-	merged := merge(toAny(st.Merge), current, st.Arrays == "replace")
+	merged := merge(expandHome(toAny(st.Merge), ctx.Home), current, st.Arrays == "replace")
 	out, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
 		return err
@@ -182,6 +182,31 @@ func containsElem(list []any, elem any) bool {
 		}
 	}
 	return false
+}
+
+// expandHome walks a decoded value tree and replaces the literal token
+// "${HOME}" in every string leaf with home. json-merge and toml-merge apply it
+// to desired values so a manifest can write an absolute home path into files
+// that do not themselves expand ~ or environment variables (e.g. codex
+// hooks.json, whose command strings need absolute paths). Bare ~ is left
+// untouched — consumers that expand it at runtime (claude, tmux) keep doing so.
+func expandHome(v any, home string) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, e := range t {
+			t[k] = expandHome(e, home)
+		}
+		return t
+	case []any:
+		for i, e := range t {
+			t[i] = expandHome(e, home)
+		}
+		return t
+	case string:
+		return strings.ReplaceAll(t, "${HOME}", home)
+	default:
+		return v
+	}
 }
 
 // toAny round-trips a map through JSON so its values (which may come from TOML)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/schuettc/kempt/internal/engine"
 	"github.com/schuettc/kempt/internal/engine/handlers"
@@ -22,9 +21,9 @@ func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io
 	manifestPath := resolveManifest(manifestFlag, st, existed)
 	profile, packages := resolveSelection(profileFlag, splitPackages(packagesFlag), st, existed)
 
-	src, err := os.ReadFile(manifestPath)
+	src, repoDir, name, err := loadManifestSource(manifestPath, os.Stdin)
 	if err != nil {
-		return nil, nil, nil, UsageError{Msg: fmt.Sprintf("cannot read %s: %v", manifestPath, err)}
+		return nil, nil, nil, UsageError{Msg: err.Error()}
 	}
 	m, findings := manifest.Parse(src)
 	if m != nil {
@@ -32,11 +31,11 @@ func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
+			fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
 		}
 		return nil, nil, nil, fmt.Errorf("manifest has findings; run kempt lint")
 	}
-	ctx, err := newContext(filepath.Dir(manifestPath))
+	ctx, err := newContext(repoDir)
 	if err != nil {
 		return nil, nil, nil, err
 	}

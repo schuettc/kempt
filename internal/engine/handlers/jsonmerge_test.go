@@ -321,3 +321,33 @@ func TestMerge(t *testing.T) {
 		})
 	}
 }
+
+func TestJSONMergeExpandsHomeToken(t *testing.T) {
+	h := jsonHandler(t)
+	ctx := testCtx(t)
+	ctx.Home = "/Users/tester"
+	f := filepath.Join(ctx.RepoDir, "hooks.json")
+	writeJSON(t, f, map[string]any{})
+	s := manifest.JSONMergeStep{File: f, Merge: map[string]any{
+		"hooks": map[string]any{"cmd": "${HOME}/.local/bin/muster hook"},
+		"keep":  "~/.config/x",
+	}}
+	if err := h.Apply(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	got := readJSON(t, f).(map[string]any)
+	hooks := got["hooks"].(map[string]any)
+	if want := "/Users/tester/.local/bin/muster hook"; hooks["cmd"] != want {
+		t.Fatalf("cmd = %q, want %q", hooks["cmd"], want)
+	}
+	if got["keep"] != "~/.config/x" {
+		t.Fatalf("bare ~ was rewritten: %q", got["keep"])
+	}
+	d, err := h.Inspect(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpNoop {
+		t.Fatalf("second inspect op = %v (%q), want noop", d.Op, d.Detail)
+	}
+}

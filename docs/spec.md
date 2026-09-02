@@ -77,8 +77,8 @@ a new versioned primitive in kempt, not a script hook.
 | `git-clone` | software | Pinned ref or branch. |
 | `service` | software | Backend: launchd (macOS), systemd `--user` (Linux); Windows later. Renders unit/plist, `cmp`-before-reload so unchanged services never restart. Fields: `label`, `program` (argv), plus optional `env`, `stdout`, `stderr`, `keep-alive`, `run-at-load`, `process-type`, `throttle-interval`, `session-type` (mapped to the backend's native keys). |
 | `symlink` | files | Repo-relative `from`; `backup = true` moves a real file to `.bak` first. Windows requires Developer Mode — detected and reported in plan, not failed mid-apply. |
-| `json-merge` | files | Additive deep merge (jq semantics); idempotent; multiple packages may merge into the same file. `arrays` selects list behavior: `append` (default, union) or `replace` (desired list wins). Covers MCP registration and harness hooks. |
-| `toml-merge` | files | Additive deep merge for TOML config files (e.g. an agent's `config.toml`); idempotent; maps recurse, arrays append-missing, scalars overwrite. |
+| `json-merge` | files | Additive deep merge (jq semantics); idempotent; multiple packages may merge into the same file. `arrays` selects list behavior: `append` (default, union) or `replace` (desired list wins). Covers MCP registration and harness hooks. The literal token `${HOME}` in any merged string value is expanded to the machine's home at write time — for files that do not themselves expand `~` (e.g. codex `hooks.json`, whose command strings need absolute paths). Bare `~` is left untouched. |
+| `toml-merge` | files | Additive deep merge for TOML config files (e.g. an agent's `config.toml`); idempotent; maps recurse, arrays append-missing, scalars overwrite. Expands the `${HOME}` token in string values like `json-merge`. |
 | `line-in-file` | files | Ensure-line/ensure-block for shell includes and PATH nudges. |
 | `verify` | read-only | Declared checks: `command-exists`, `command-exists-any` (any of a list on PATH), `http-ok` (URL returns 2xx), symlink target, `version-current` (GitHub latest-release drift). |
 

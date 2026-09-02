@@ -42,8 +42,16 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 		return err
 	}
 
-	// 1. Pull the repo. A real conflict must surface, not be swallowed.
-	if err := gitrepo.Pull(ctx.Runner, st.RepoDir); err != nil {
+	// 1. Refresh the config tree. A tarball-sourced config is re-fetched and
+	// re-extracted; a git repo is pulled (a real conflict must surface).
+	if st.RepoKind == "tarball" {
+		if st.RepoURL == "" {
+			return UsageError{Msg: "tarball-sourced config has no saved URL to re-fetch"}
+		}
+		if err := fetchTarball(st.RepoURL, st.RepoDir); err != nil {
+			return fmt.Errorf("re-fetch %s: %w", st.RepoURL, err)
+		}
+	} else if err := gitrepo.Pull(ctx.Runner, st.RepoDir); err != nil {
 		return fmt.Errorf("git pull failed: %w", err)
 	}
 

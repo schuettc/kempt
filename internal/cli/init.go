@@ -21,7 +21,7 @@ import (
 func init() {
 	Register(Command{
 		Name:    "init",
-		Summary: "clone a repo, choose a profile, and apply",
+		Summary: "fetch a config (git repo or tarball URL), choose a profile, and apply",
 		Run:     runInit,
 	})
 }
@@ -70,26 +70,35 @@ func runInit(args []string, out, errw io.Writer) error {
 		return err
 	}
 
-	// Repo resolution: clone when the dir is not already the right checkout.
-	origin, rerr := gitrepo.RemoteURL(ctx.Runner, dir)
-	switch {
-	case url != "":
+	// Repo resolution. A tarball URL is fetched + extracted (no git); anything
+	// else is a git repo cloned when the dir is not already the right checkout.
+	repoKind := "git"
+	if isTarballURL(url) {
+		repoKind = "tarball"
+		if err := fetchTarball(url, dir); err != nil {
+			return fmt.Errorf("fetch %s: %w", url, err)
+		}
+	} else {
+		origin, rerr := gitrepo.RemoteURL(ctx.Runner, dir)
 		switch {
-		case rerr != nil:
-			// Not a repo (or absent): clone it.
-			if err := gitrepo.Clone(ctx.Runner, url, dir); err != nil {
-				return fmt.Errorf("clone %s: %w", url, err)
+		case url != "":
+			switch {
+			case rerr != nil:
+				// Not a repo (or absent): clone it.
+				if err := gitrepo.Clone(ctx.Runner, url, dir); err != nil {
+					return fmt.Errorf("clone %s: %w", url, err)
+				}
+			case origin == url:
+				// Already the right checkout; reuse.
+			default:
+				return UsageError{Msg: fmt.Sprintf("%s already has origin %q, not %q", dir, origin, url)}
 			}
-		case origin == url:
-			// Already the right checkout; reuse.
 		default:
-			return UsageError{Msg: fmt.Sprintf("%s already has origin %q, not %q", dir, origin, url)}
+			if rerr != nil {
+				return UsageError{Msg: "provide a repo URL to clone"}
+			}
+			url = origin
 		}
-	default:
-		if rerr != nil {
-			return UsageError{Msg: "provide a repo URL to clone"}
-		}
-		url = origin
 	}
 
 	manifestPath := *manifestFlag
@@ -147,6 +156,7 @@ func runInit(args []string, out, errw io.Writer) error {
 	if err := saveState(&state.State{
 		RepoDir:        dir,
 		RepoURL:        url,
+		RepoKind:       repoKind,
 		Profile:        chosenProfile,
 		Packages:       chosenPackages,
 		AutoApplyFiles: false,
