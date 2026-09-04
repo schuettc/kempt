@@ -14,8 +14,14 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "adopt", Summary: "add a package (and its needs) to the saved selection", Run: runAdopt})
-	Register(Command{Name: "drop", Summary: "remove a package from the saved selection", Run: runDrop})
+	Register(Command{Name: "adopt", Summary: "add a package (and its needs) to the saved selection",
+		Synopsis: "adopt <package>",
+		Help:     "Adds a package and any packages it needs to the saved selection. Run apply to converge.",
+		Run:      runAdopt})
+	Register(Command{Name: "drop", Summary: "remove a package from the saved selection",
+		Synopsis: "drop <package>",
+		Help:     "Removes a package from the saved selection (refused if another selected package needs it).",
+		Run:      runDrop})
 }
 
 // parseOnePositional parses args with an empty flag set (so -h is handled) and
