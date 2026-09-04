@@ -3,3 +3,6 @@
 
 # Superpowers SDD workspace (ledgers, briefs, reports, review diffs) — scratch, never committed
 .superpowers/
+
+# SDD design docs (plans/specs) — kept local, not committed
+docs/superpowers/
