@@ -15,7 +15,38 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "apply", Summary: "apply the plan to converge the machine", Run: runApply})
+	Register(Command{
+		Name:     "apply",
+		Summary:  "apply the plan to converge the machine",
+		Synopsis: "apply [flags]",
+		Help: "Converges this machine to the manifest: installs/updates packages, writes\n" +
+			"symlinks and merged config, and runs verifications. Prompts before applying\n" +
+			"unless -yes. With -manifest - (stdin), -yes is required.",
+		NewFlags: func() *flag.FlagSet { fs, _ := newApplyFlags(); return fs },
+		Run:      runApply,
+	})
+}
+
+// applyFlags holds the parsed flag values for runApply.
+type applyFlags struct {
+	manifest *string
+	profile  *string
+	packages *string
+	yes      *bool
+}
+
+// newApplyFlags constructs apply's FlagSet and the values struct it populates
+// on Parse. Side-effect-free: safe to call for -h rendering without running
+// runApply's body.
+func newApplyFlags() (*flag.FlagSet, *applyFlags) {
+	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
+	v := &applyFlags{
+		manifest: fs.String("manifest", "", "path to manifest"),
+		profile:  fs.String("profile", "", "profile to select"),
+		packages: fs.String("packages", "", "comma-separated package names"),
+		yes:      YesFlag(fs, "skip the confirmation prompt"),
+	}
+	return fs, v
 }
 
 // stdin is the reader used for confirmation prompts (apply, upgrade). It is a
@@ -36,11 +67,7 @@ func confirm() bool {
 }
 
 func runApply(args []string, out, errw io.Writer) error {
-	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
-	manifestFlag := fs.String("manifest", "", "path to manifest")
-	profileFlag := fs.String("profile", "", "profile to select")
-	packagesFlag := fs.String("packages", "", "comma-separated package names")
-	yes := YesFlag(fs, "skip the confirmation prompt")
+	fs, v := newApplyFlags()
 	if err := ParseFlags(fs, args, out); err != nil {
 		return err
 	}
@@ -49,12 +76,12 @@ func runApply(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	manifestPath := resolveManifest(*manifestFlag, st, existed)
-	profile, packages := resolveSelection(*profileFlag, splitPackages(*packagesFlag), st, existed)
+	manifestPath := resolveManifest(*v.manifest, st, existed)
+	profile, packages := resolveSelection(*v.profile, splitPackages(*v.packages), st, existed)
 
 	// A stdin manifest consumes the same stream the confirmation prompt reads,
 	// so it cannot be applied interactively — require -yes.
-	if manifestPath == "-" && !*yes {
+	if manifestPath == "-" && !*v.yes {
 		return UsageError{Msg: "reading the manifest from stdin (-manifest -) requires -yes"}
 	}
 
@@ -95,7 +122,7 @@ func runApply(args []string, out, errw io.Writer) error {
 		return nil
 	}
 
-	if !*yes {
+	if !*v.yes {
 		fmt.Fprintf(out, "apply %d changes? [y/N] ", changes)
 		if !confirm() {
 			fmt.Fprintln(out, "aborted")

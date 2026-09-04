@@ -111,7 +111,7 @@ func TestApplyHelpListsFlags(t *testing.T) {
 			t.Fatalf("%s: exit = %d, want 0; err=%s", arg, code, errw.String())
 		}
 		got := out.String()
-		for _, want := range []string{"-yes", "-y", "Usage of apply"} {
+		for _, want := range []string{"-yes", "-y", "Usage: kempt apply"} {
 			if !strings.Contains(got, want) {
 				t.Fatalf("%s: help missing %q; got:\n%s", arg, want, got)
 			}
