@@ -10,20 +10,45 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "outdated", Summary: "list installed tools with newer releases", Run: runOutdated})
+	Register(Command{
+		Name:     "outdated",
+		Summary:  "list installed tools with newer releases",
+		Synopsis: "outdated [flags]",
+		Help:     "Lists installed download-tools that are behind their pinned or latest version. -json for machine output.",
+		NewFlags: func() *flag.FlagSet { fs, _ := newOutdatedFlags(); return fs },
+		Run:      runOutdated,
+	})
+}
+
+// outdatedFlags holds the parsed flag values for runOutdated.
+type outdatedFlags struct {
+	manifest *string
+	profile  *string
+	packages *string
+	json     *bool
+}
+
+// newOutdatedFlags constructs outdated's FlagSet and the values struct it populates
+// on Parse. Side-effect-free: safe to call for -h rendering without running
+// runOutdated's body.
+func newOutdatedFlags() (*flag.FlagSet, *outdatedFlags) {
+	fs := flag.NewFlagSet("outdated", flag.ContinueOnError)
+	v := &outdatedFlags{
+		manifest: fs.String("manifest", "", "path to manifest"),
+		profile:  fs.String("profile", "", "profile to select"),
+		packages: fs.String("packages", "", "comma-separated package names"),
+		json:     fs.Bool("json", false, "emit machine-readable JSON"),
+	}
+	return fs, v
 }
 
 func runOutdated(args []string, out, errw io.Writer) error {
-	fs := flag.NewFlagSet("outdated", flag.ContinueOnError)
-	manifestFlag := fs.String("manifest", "", "path to manifest")
-	profileFlag := fs.String("profile", "", "profile to select")
-	packagesFlag := fs.String("packages", "", "comma-separated package names")
-	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
+	fs, v := newOutdatedFlags()
 	if err := ParseFlags(fs, args, out); err != nil {
 		return err
 	}
 
-	_, selected, ctx, err := loadSelectedContext(*manifestFlag, *profileFlag, *packagesFlag, errw)
+	_, selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
 	if err != nil {
 		return err
 	}
@@ -33,7 +58,7 @@ func runOutdated(args []string, out, errw io.Writer) error {
 		return err
 	}
 
-	if *jsonFlag {
+	if *v.json {
 		return printOutdatedJSON(out, statuses)
 	}
 

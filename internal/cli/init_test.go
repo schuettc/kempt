@@ -117,6 +117,54 @@ func TestInitProfileNonInteractive(t *testing.T) {
 	}
 }
 
+// TestInitURLAfterFlags: the repo-URL positional can come after the flags
+// (SplitArgs must still extract the trailing positional), not just before them.
+func TestInitURLAfterFlags(t *testing.T) {
+	r := &run.FakeRunner{}
+	store, home, dir := setupInit(t, r)
+	r.Responses = map[string]run.Response{
+		"git -C " + dir + " remote get-url origin": {Err: os.ErrNotExist},
+		"git clone " + initTestURL + " " + dir:     {Stdout: ""},
+	}
+
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"init", "-dir", dir, "-profile", "developer", "-yes", initTestURL}, &out, &errw)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s err=%s", code, out.String(), errw.String())
+	}
+
+	// Clone was called.
+	cloned := false
+	for _, c := range r.Calls {
+		if c == "git clone "+initTestURL+" "+dir {
+			cloned = true
+		}
+	}
+	if !cloned {
+		t.Fatalf("git clone not called; calls=%v", r.Calls)
+	}
+
+	// State saved.
+	st, existed, err := store.Load()
+	if err != nil || !existed {
+		t.Fatalf("state not saved: existed=%v err=%v", existed, err)
+	}
+	if st.RepoDir != dir || st.RepoURL != initTestURL || st.Profile != "developer" {
+		t.Fatalf("state = %+v, want dir/url/profile set", st)
+	}
+	if len(st.Packages) != 1 || st.Packages[0] != "tools" {
+		t.Fatalf("state packages = %v, want [tools]", st.Packages)
+	}
+
+	// Applied: symlink created.
+	link := filepath.Join(home, ".rc")
+	if target, err := os.Readlink(link); err != nil {
+		t.Fatalf("symlink not created: %v", err)
+	} else if want := filepath.Join(dir, "src", "rc"); target != want {
+		t.Fatalf("link target = %q, want %q", target, want)
+	}
+}
+
 func TestInitInteractivePicker(t *testing.T) {
 	r := &run.FakeRunner{}
 	store, home, dir := setupInit(t, r)

@@ -20,9 +20,14 @@ import (
 
 func init() {
 	Register(Command{
-		Name:    "init",
-		Summary: "fetch a config (git repo or tarball URL), choose a profile, and apply",
-		Run:     runInit,
+		Name:     "init",
+		Summary:  "fetch a config repo, choose a profile, and apply",
+		Synopsis: "init [flags] [repo-url]",
+		Help: "Clones (or fetches) a config repo, selects a profile, and applies it.\n" +
+			"repo-url may be a git URL or tarball URL; omit it to use the saved config.\n" +
+			"Non-interactively (-yes), -profile is required.",
+		NewFlags: func() *flag.FlagSet { fs, _ := newInitFlags(); return fs },
+		Run:      runInit,
 	})
 }
 
@@ -30,36 +35,41 @@ func init() {
 // inject a fixed Result without a TTY.
 var pickerRun = picker.Run
 
-func runInit(args []string, out, errw io.Writer) error {
+// initFlags holds the parsed flag values for the init command.
+type initFlags struct {
+	dir      *string
+	profile  *string
+	yes      *bool
+	manifest *string
+}
+
+// newInitFlags builds the init FlagSet and its bound flag values.
+func newInitFlags() (*flag.FlagSet, *initFlags) {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
-	dirFlag := fs.String("dir", "", "clone target directory (default ~/.config/kempt/repo)")
-	profileFlag := fs.String("profile", "", "profile to select (non-interactive)")
-	yes := YesFlag(fs, "skip the confirmation prompt")
-	manifestFlag := fs.String("manifest", "", "path to manifest within the repo (test override)")
-	// Allow the positional repo-url to appear before or after flags by
-	// re-parsing around each positional argument.
-	var positional []string
-	rest := args
-	for {
-		if err := ParseFlags(fs, rest, out); err != nil {
-			return err
-		}
-		rest = fs.Args()
-		if len(rest) == 0 {
-			break
-		}
-		positional = append(positional, rest[0])
-		rest = rest[1:]
+	v := &initFlags{
+		dir:      fs.String("dir", "", "clone target directory (default ~/.config/kempt/repo)"),
+		profile:  fs.String("profile", "", "profile to select (non-interactive)"),
+		manifest: fs.String("manifest", "", "path to manifest within the repo (test override)"),
+	}
+	v.yes = YesFlag(fs, "skip the confirmation prompt")
+	return fs, v
+}
+
+func runInit(args []string, out, errw io.Writer) error {
+	fs, v := newInitFlags()
+	flagArgs, positional := SplitArgs(fs, args)
+	if err := ParseFlags(fs, flagArgs, out); err != nil {
+		return err
 	}
 	if len(positional) > 1 {
 		return UsageError{Msg: "unexpected argument: " + positional[1]}
 	}
 	var url string
-	if len(positional) > 0 {
+	if len(positional) == 1 {
 		url = positional[0]
 	}
 
-	dir, err := resolveRepoDir(*dirFlag)
+	dir, err := resolveRepoDir(*v.dir)
 	if err != nil {
 		return err
 	}
@@ -100,7 +110,7 @@ func runInit(args []string, out, errw io.Writer) error {
 		}
 	}
 
-	manifestPath := *manifestFlag
+	manifestPath := *v.manifest
 	if manifestPath == "" {
 		manifestPath = filepath.Join(dir, "kempt.toml")
 	}
@@ -127,15 +137,15 @@ func runInit(args []string, out, errw io.Writer) error {
 		selPackages    []string
 	)
 	switch {
-	case *profileFlag != "":
-		pr, ok := m.Profiles[*profileFlag]
+	case *v.profile != "":
+		pr, ok := m.Profiles[*v.profile]
 		if !ok {
-			return UsageError{Msg: fmt.Sprintf("unknown profile %q", *profileFlag)}
+			return UsageError{Msg: fmt.Sprintf("unknown profile %q", *v.profile)}
 		}
-		chosenProfile = *profileFlag
+		chosenProfile = *v.profile
 		chosenPackages = pr.Packages
-		selProfile = *profileFlag
-	case *yes:
+		selProfile = *v.profile
+	case *v.yes:
 		return UsageError{Msg: "-yes requires -profile for non-interactive init"}
 	default:
 		profiles, items := buildPickerInputs(m)
@@ -179,7 +189,7 @@ func runInit(args []string, out, errw io.Writer) error {
 		return nil
 	}
 
-	if !*yes {
+	if !*v.yes {
 		fmt.Fprintf(out, "apply %d changes? [y/N] ", changes)
 		line, _ := bufio.NewReader(stdin).ReadString('\n')
 		switch strings.ToLower(strings.TrimSpace(line)) {

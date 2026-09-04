@@ -21,6 +21,7 @@ type UsageError = tools.UsageError
 var (
 	ParseFlags = tools.ParseFlags
 	YesFlag    = tools.YesFlag
+	SplitArgs  = tools.SplitArgs
 )
 
 // commands holds the per-command registrations from the init() files. tools
@@ -49,8 +50,10 @@ func Dispatch(args []string, out, errw io.Writer) int {
 	// overrides tools' built-in self-update-only update with kempt's
 	// pull+self-update+converge flow.
 	app.Register(tools.Command{
-		Name:    "update",
-		Summary: "pull the repo, self-update the binary, and converge",
+		Name:     "update",
+		Summary:  "pull the repo, self-update the binary, and converge",
+		Synopsis: "update",
+		Help:     "Pulls the config repo, self-updates the kempt binary from kempt.tools/dl, and applies.",
 		Run: func(args []string, out, errw io.Writer) error {
 			return runUpdate(app, args, out, errw)
 		},

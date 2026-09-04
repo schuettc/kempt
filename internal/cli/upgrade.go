@@ -11,18 +11,44 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "upgrade", Summary: "upgrade installed tools to newer releases", Run: runUpgrade})
+	Register(Command{
+		Name:     "upgrade",
+		Summary:  "upgrade installed tools to newer releases",
+		Synopsis: "upgrade [flags] [tool...]",
+		Help: "Upgrades installed download-tools that are behind. With no tool names,\n" +
+			"considers all; names limit it to those tools. Prompts unless -yes.",
+		NewFlags: func() *flag.FlagSet { fs, _ := newUpgradeFlags(); return fs },
+		Run:      runUpgrade,
+	})
+}
+
+// upgradeFlags holds the parsed flag values for runUpgrade.
+type upgradeFlags struct {
+	manifest *string
+	profile  *string
+	packages *string
+	yes      *bool
+}
+
+// newUpgradeFlags constructs upgrade's FlagSet and the values struct it populates
+// on Parse. Side-effect-free: safe to call for -h rendering without running
+// runUpgrade's body.
+func newUpgradeFlags() (*flag.FlagSet, *upgradeFlags) {
+	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
+	v := &upgradeFlags{
+		manifest: fs.String("manifest", "", "path to manifest"),
+		profile:  fs.String("profile", "", "profile to select"),
+		packages: fs.String("packages", "", "comma-separated package names"),
+		yes:      YesFlag(fs, "apply without prompting"),
+	}
+	return fs, v
 }
 
 // runUpgrade upgrades installed download tools that are behind their pinned
 // or latest-resolved version, reusing the download handler's verified Apply.
 // It never edits the manifest.
 func runUpgrade(args []string, out, errw io.Writer) error {
-	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
-	manifestFlag := fs.String("manifest", "", "path to manifest")
-	profileFlag := fs.String("profile", "", "profile to select")
-	packagesFlag := fs.String("packages", "", "comma-separated package names")
-	yes := YesFlag(fs, "apply without prompting")
+	fs, v := newUpgradeFlags()
 	if err := ParseFlags(fs, args, out); err != nil {
 		return err
 	}
@@ -31,7 +57,7 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 		only[name] = true
 	}
 
-	_, selected, ctx, err := loadSelectedContext(*manifestFlag, *profileFlag, *packagesFlag, errw)
+	_, selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
 	if err != nil {
 		return err
 	}
@@ -60,7 +86,7 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 	for _, s := range todo {
 		fmt.Fprintf(out, "%s  %s -> %s\n", s.Tool, s.Installed, s.Target)
 	}
-	if !*yes {
+	if !*v.yes {
 		fmt.Fprint(out, "upgrade these? [y/N] ")
 		if !confirm() {
 			fmt.Fprintln(out, "aborted")

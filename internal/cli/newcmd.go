@@ -19,9 +19,11 @@ var workflowTemplate []byte
 
 func init() {
 	Register(Command{
-		Name:    "new",
-		Summary: "scaffold a new kempt config repo",
-		Run:     runNew,
+		Name:     "new",
+		Summary:  "scaffold a new kempt config repo",
+		Synopsis: "new [dir]",
+		Help:     "Scaffolds a new kempt config repo in dir (default: current directory).",
+		Run:      runNew,
 	})
 }
 

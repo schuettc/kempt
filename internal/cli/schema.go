@@ -7,7 +7,13 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "schema", Summary: "print the JSON Schema for kempt.toml", Run: runSchema})
+	Register(Command{
+		Name:     "schema",
+		Summary:  "print the JSON Schema for kempt.toml",
+		Synopsis: "schema",
+		Help:     "Prints the JSON Schema for kempt.toml.",
+		Run:      runSchema,
+	})
 }
 
 func runSchema(args []string, out, errw io.Writer) error {

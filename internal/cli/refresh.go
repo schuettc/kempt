@@ -17,18 +17,36 @@ import (
 
 func init() {
 	Register(Command{
-		Name:    "refresh",
-		Summary: "check the repo and update the cached status",
-		Run:     runRefresh,
+		Name:     "refresh",
+		Summary:  "check the repo and update the cached status",
+		Synopsis: "refresh [flags]",
+		Help:     "Re-reads the manifest and refreshes cached package/tool status.",
+		NewFlags: func() *flag.FlagSet { fs, _ := newRefreshFlags(); return fs },
+		Run:      runRefresh,
 	})
 }
 
 // now is a seam so tests can pin the CheckedAt timestamp.
 var now = time.Now
 
-func runRefresh(args []string, out, errw io.Writer) error {
+// refreshFlags holds the parsed flag values for runRefresh.
+type refreshFlags struct {
+	manifest *string
+}
+
+// newRefreshFlags constructs refresh's FlagSet and the values struct it populates
+// on Parse. Side-effect-free: safe to call for -h rendering without running
+// runRefresh's body.
+func newRefreshFlags() (*flag.FlagSet, *refreshFlags) {
 	fs := flag.NewFlagSet("refresh", flag.ContinueOnError)
-	manifestFlag := fs.String("manifest", "", "path to manifest")
+	v := &refreshFlags{
+		manifest: fs.String("manifest", "", "path to manifest"),
+	}
+	return fs, v
+}
+
+func runRefresh(args []string, out, errw io.Writer) error {
+	fs, v := newRefreshFlags()
 	if err := ParseFlags(fs, args, out); err != nil {
 		return err
 	}
@@ -41,7 +59,7 @@ func runRefresh(args []string, out, errw io.Writer) error {
 		return UsageError{Msg: "no saved selection; run kempt init first"}
 	}
 
-	manifestPath := resolveManifest(*manifestFlag, st, existed)
+	manifestPath := resolveManifest(*v.manifest, st, existed)
 	ctx, err := newContext(filepath.Dir(manifestPath))
 	if err != nil {
 		return err
