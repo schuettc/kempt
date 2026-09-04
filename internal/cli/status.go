@@ -16,9 +16,11 @@ var statusStore = func() (*state.Store, error) {
 
 func init() {
 	Register(Command{
-		Name:    "status",
-		Summary: "show cached refresh status",
-		Run:     runStatus,
+		Name:     "status",
+		Summary:  "show cached refresh status",
+		Synopsis: "status",
+		Help:     "Shows cached refresh status for the current selection.",
+		Run:      runStatus,
 	})
 }
 

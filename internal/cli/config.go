@@ -8,9 +8,11 @@ import (
 
 func init() {
 	Register(Command{
-		Name:    "config",
-		Summary: "get or set kempt configuration",
-		Run:     runConfig,
+		Name:     "config",
+		Summary:  "get or set kempt configuration",
+		Synopsis: "config <get|set> [key] [value]",
+		Help:     "Gets or sets kempt configuration (the saved manifest path, profile, and package selection).",
+		Run:      runConfig,
 	})
 }
 

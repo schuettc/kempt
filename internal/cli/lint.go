@@ -11,7 +11,13 @@ import (
 // runLint validates a manifest from a path, an http(s) URL, or "-" (stdin).
 
 func init() {
-	Register(Command{Name: "lint", Summary: "validate a kempt.toml", Run: runLint})
+	Register(Command{
+		Name:     "lint",
+		Summary:  "validate a kempt.toml",
+		Synopsis: "lint [path]",
+		Help:     "Validates a kempt.toml (defaults to the current manifest) and reports findings.",
+		Run:      runLint,
+	})
 }
 
 func runLint(args []string, out, errw io.Writer) error {
