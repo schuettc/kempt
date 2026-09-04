@@ -84,6 +84,44 @@ func TestApplyYesFlagApplies(t *testing.T) {
 	}
 }
 
+func TestApplyShortYesFlagApplies(t *testing.T) {
+	p, home := writeSymlinkManifest(t)
+	withContextHome(t, home, &run.FakeRunner{})
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"apply", "-y", "-manifest", p}, &out, &errw)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s err=%s", code, out.String(), errw.String())
+	}
+	if strings.Contains(out.String(), "[y/N]") {
+		t.Fatalf("-y should skip the prompt, but it was shown: %q", out.String())
+	}
+	if _, err := os.Readlink(filepath.Join(home, ".rc")); err != nil {
+		t.Fatalf("link not created: %v", err)
+	}
+}
+
+// TestApplyHelpListsFlags guards the discoverability fix: -h/--help must print
+// the command's flags (including -yes and its -y shorthand) and exit cleanly,
+// rather than the bare "flag: help requested" that hid -yes.
+func TestApplyHelpListsFlags(t *testing.T) {
+	for _, arg := range []string{"-h", "--help"} {
+		var out, errw bytes.Buffer
+		code := Dispatch([]string{"apply", arg}, &out, &errw)
+		if code != 0 {
+			t.Fatalf("%s: exit = %d, want 0; err=%s", arg, code, errw.String())
+		}
+		got := out.String()
+		for _, want := range []string{"-yes", "-y", "Usage of apply"} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("%s: help missing %q; got:\n%s", arg, want, got)
+			}
+		}
+		if strings.Contains(errw.String(), "help requested") {
+			t.Fatalf("%s: leaked raw flag error: %q", arg, errw.String())
+		}
+	}
+}
+
 func TestApplyConfirmYesApplies(t *testing.T) {
 	p, home := writeSymlinkManifest(t)
 	withContextHome(t, home, &run.FakeRunner{})

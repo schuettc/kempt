@@ -15,13 +15,12 @@ func init() {
 
 func runOutdated(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("outdated", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	manifestFlag := fs.String("manifest", "", "path to manifest")
 	profileFlag := fs.String("profile", "", "profile to select")
 	packagesFlag := fs.String("packages", "", "comma-separated package names")
 	jsonFlag := fs.Bool("json", false, "emit machine-readable JSON")
-	if err := fs.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	if err := ParseFlags(fs, args, out); err != nil {
+		return err
 	}
 
 	_, selected, ctx, err := loadSelectedContext(*manifestFlag, *profileFlag, *packagesFlag, errw)

@@ -20,11 +20,10 @@ func init() {
 
 // parseOnePositional parses args with an empty flag set (so -h is handled) and
 // requires exactly one positional argument.
-func parseOnePositional(name string, args []string) (string, error) {
+func parseOnePositional(name string, args []string, out io.Writer) (string, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	if err := fs.Parse(args); err != nil {
-		return "", UsageError{Msg: err.Error()}
+	if err := ParseFlags(fs, args, out); err != nil {
+		return "", err
 	}
 	rest := fs.Args()
 	if len(rest) != 1 {
@@ -58,7 +57,7 @@ func loadStateManifest() (*state.State, *manifest.Manifest, error) {
 }
 
 func runAdopt(args []string, out, errw io.Writer) error {
-	pkg, err := parseOnePositional("adopt", args)
+	pkg, err := parseOnePositional("adopt", args, out)
 	if err != nil {
 		return err
 	}
@@ -115,7 +114,7 @@ func runAdopt(args []string, out, errw io.Writer) error {
 }
 
 func runDrop(args []string, out, errw io.Writer) error {
-	pkg, err := parseOnePositional("drop", args)
+	pkg, err := parseOnePositional("drop", args, out)
 	if err != nil {
 		return err
 	}

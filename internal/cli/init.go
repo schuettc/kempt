@@ -32,18 +32,17 @@ var pickerRun = picker.Run
 
 func runInit(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	dirFlag := fs.String("dir", "", "clone target directory (default ~/.config/kempt/repo)")
 	profileFlag := fs.String("profile", "", "profile to select (non-interactive)")
-	yes := fs.Bool("yes", false, "skip the confirmation prompt")
+	yes := YesFlag(fs, "skip the confirmation prompt")
 	manifestFlag := fs.String("manifest", "", "path to manifest within the repo (test override)")
 	// Allow the positional repo-url to appear before or after flags by
 	// re-parsing around each positional argument.
 	var positional []string
 	rest := args
 	for {
-		if err := fs.Parse(rest); err != nil {
-			return UsageError{Msg: err.Error()}
+		if err := ParseFlags(fs, rest, out); err != nil {
+			return err
 		}
 		rest = fs.Args()
 		if len(rest) == 0 {

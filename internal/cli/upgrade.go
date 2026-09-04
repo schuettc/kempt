@@ -19,13 +19,12 @@ func init() {
 // It never edits the manifest.
 func runUpgrade(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	manifestFlag := fs.String("manifest", "", "path to manifest")
 	profileFlag := fs.String("profile", "", "profile to select")
 	packagesFlag := fs.String("packages", "", "comma-separated package names")
-	yes := fs.Bool("yes", false, "apply without prompting")
-	if err := fs.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	yes := YesFlag(fs, "apply without prompting")
+	if err := ParseFlags(fs, args, out); err != nil {
+		return err
 	}
 	only := map[string]bool{}
 	for _, name := range fs.Args() {

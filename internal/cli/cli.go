@@ -13,6 +13,16 @@ import (
 type Command = tools.Command
 type UsageError = tools.UsageError
 
+// ParseFlags and YesFlag are the shared family CLI helpers, aliased so each
+// command file calls them unqualified (as it does Register/Command/UsageError).
+// ParseFlags gives every subcommand a real -h/--help flag listing and maps
+// flag.ErrHelp to a clean exit through Dispatch; YesFlag registers -yes and its
+// -y shorthand once.
+var (
+	ParseFlags = tools.ParseFlags
+	YesFlag    = tools.YesFlag
+)
+
 // commands holds the per-command registrations from the init() files. tools
 // auto-registers version/help/update; those live on the App, not here.
 var commands []tools.Command

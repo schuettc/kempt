@@ -17,12 +17,11 @@ func init() {
 
 func runVerify(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	manifestFlag := fs.String("manifest", "", "path to manifest")
 	profileFlag := fs.String("profile", "", "profile to select")
 	packagesFlag := fs.String("packages", "", "comma-separated package names")
-	if err := fs.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	if err := ParseFlags(fs, args, out); err != nil {
+		return err
 	}
 
 	st, existed, err := loadState()
