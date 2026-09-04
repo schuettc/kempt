@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve tag and mode
         id: rel
         env:
@@ -89,7 +89,7 @@ jobs:
             echo "create=true" >> "$GITHUB_OUTPUT"
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         if: steps.rel.outputs.skip == 'false'
         with:
           go-version-file: go.mod
@@ -134,7 +134,7 @@ jobs:
       # CreateInvalidation on the kempt.tools distribution — no other access.
       - name: Configure AWS credentials (downloads)
         if: steps.rel.outputs.skip == 'false'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.KEMPT_RELEASE_ROLE_ARN }}
           aws-region: us-east-1
