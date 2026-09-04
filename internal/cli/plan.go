@@ -12,7 +12,14 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "plan", Summary: "show what apply would change", Run: runPlan})
+	Register(Command{
+		Name:     "plan",
+		Summary:  "show what apply would change",
+		Synopsis: "plan [flags]",
+		Help:     "Shows what apply would change without changing anything. -os/-arch plan for a different target.",
+		NewFlags: func() *flag.FlagSet { fs, _ := newPlanFlags(); return fs },
+		Run:      runPlan,
+	})
 }
 
 // newContext builds a machine.Context for a repo directory. It is a package var
@@ -25,26 +32,45 @@ var newContext = func(repoDir string) (*machine.Context, error) {
 	return machine.New(abs, run.RealRunner{})
 }
 
-func runPlan(args []string, out, errw io.Writer) error {
+// planFlags holds the parsed flag values for runPlan.
+type planFlags struct {
+	manifest *string
+	profile  *string
+	packages *string
+	os       *string
+	arch     *string
+}
+
+// newPlanFlags constructs plan's FlagSet and the values struct it populates
+// on Parse. Side-effect-free: safe to call for -h rendering without running
+// runPlan's body.
+func newPlanFlags() (*flag.FlagSet, *planFlags) {
 	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
-	manifestFlag := fs.String("manifest", "", "path to manifest")
-	profileFlag := fs.String("profile", "", "profile to select")
-	packagesFlag := fs.String("packages", "", "comma-separated package names")
-	osFlag := fs.String("os", "", "override OS for dry-planning (e.g. linux, darwin)")
-	archFlag := fs.String("arch", "", "override Arch for dry-planning (e.g. amd64, arm64)")
+	v := &planFlags{
+		manifest: fs.String("manifest", "", "path to manifest"),
+		profile:  fs.String("profile", "", "profile to select"),
+		packages: fs.String("packages", "", "comma-separated package names"),
+		os:       fs.String("os", "", "override OS for dry-planning (e.g. linux, darwin)"),
+		arch:     fs.String("arch", "", "override Arch for dry-planning (e.g. amd64, arm64)"),
+	}
+	return fs, v
+}
+
+func runPlan(args []string, out, errw io.Writer) error {
+	fs, v := newPlanFlags()
 	if err := ParseFlags(fs, args, out); err != nil {
 		return err
 	}
 
-	_, selected, ctx, err := loadSelectedContext(*manifestFlag, *profileFlag, *packagesFlag, errw)
+	_, selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
 	if err != nil {
 		return err
 	}
-	if *osFlag != "" {
-		ctx.OS = *osFlag
+	if *v.os != "" {
+		ctx.OS = *v.os
 	}
-	if *archFlag != "" {
-		ctx.Arch = *archFlag
+	if *v.arch != "" {
+		ctx.Arch = *v.arch
 	}
 	plan, err := engine.BuildPlan(ctx, selected)
 	if err != nil {

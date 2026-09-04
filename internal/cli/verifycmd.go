@@ -12,14 +12,38 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "verify", Summary: "run read-only verify checks", Run: runVerify})
+	Register(Command{
+		Name:     "verify",
+		Summary:  "run read-only verify checks",
+		Synopsis: "verify [flags]",
+		Help:     "Runs each package's verify checks (command-exists, symlink targets, ...) read-only.",
+		NewFlags: func() *flag.FlagSet { fs, _ := newVerifyFlags(); return fs },
+		Run:      runVerify,
+	})
+}
+
+// verifyFlags holds the parsed flag values for runVerify.
+type verifyFlags struct {
+	manifest *string
+	profile  *string
+	packages *string
+}
+
+// newVerifyFlags constructs verify's FlagSet and the values struct it populates
+// on Parse. Side-effect-free: safe to call for -h rendering without running
+// runVerify's body.
+func newVerifyFlags() (*flag.FlagSet, *verifyFlags) {
+	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
+	v := &verifyFlags{
+		manifest: fs.String("manifest", "", "path to manifest"),
+		profile:  fs.String("profile", "", "profile to select"),
+		packages: fs.String("packages", "", "comma-separated package names"),
+	}
+	return fs, v
 }
 
 func runVerify(args []string, out, errw io.Writer) error {
-	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
-	manifestFlag := fs.String("manifest", "", "path to manifest")
-	profileFlag := fs.String("profile", "", "profile to select")
-	packagesFlag := fs.String("packages", "", "comma-separated package names")
+	fs, v := newVerifyFlags()
 	if err := ParseFlags(fs, args, out); err != nil {
 		return err
 	}
@@ -28,8 +52,8 @@ func runVerify(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	manifestPath := resolveManifest(*manifestFlag, st, existed)
-	profile, packages := resolveSelection(*profileFlag, splitPackages(*packagesFlag), st, existed)
+	manifestPath := resolveManifest(*v.manifest, st, existed)
+	profile, packages := resolveSelection(*v.profile, splitPackages(*v.packages), st, existed)
 
 	src, repoDir, name, err := loadManifestSource(manifestPath, os.Stdin)
 	if err != nil {

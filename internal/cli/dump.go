@@ -13,12 +13,34 @@ import (
 )
 
 func init() {
-	Register(Command{Name: "dump", Summary: "suggest a manifest from the current machine (read-only)", Run: runDump})
+	Register(Command{
+		Name:     "dump",
+		Summary:  "suggest a manifest from the current machine (read-only)",
+		Synopsis: "dump [flags]",
+		Help:     "Prints a manifest inferred from the current machine (read-only).",
+		NewFlags: func() *flag.FlagSet { fs, _ := newDumpFlags(); return fs },
+		Run:      runDump,
+	})
+}
+
+// dumpFlags holds the parsed flag values for runDump.
+type dumpFlags struct {
+	repo *string
+}
+
+// newDumpFlags constructs dump's FlagSet and the values struct it populates
+// on Parse. Side-effect-free: safe to call for -h rendering without running
+// runDump's body.
+func newDumpFlags() (*flag.FlagSet, *dumpFlags) {
+	fs := flag.NewFlagSet("dump", flag.ContinueOnError)
+	v := &dumpFlags{
+		repo: fs.String("repo", "", "repo directory for symlink detection"),
+	}
+	return fs, v
 }
 
 func runDump(args []string, out, errw io.Writer) error {
-	fs := flag.NewFlagSet("dump", flag.ContinueOnError)
-	repoFlag := fs.String("repo", "", "repo directory for symlink detection")
+	fs, v := newDumpFlags()
 	if err := ParseFlags(fs, args, out); err != nil {
 		return err
 	}
@@ -37,8 +59,8 @@ func runDump(args []string, out, errw io.Writer) error {
 
 	dumpBrew(ctx, out)
 
-	if *repoFlag != "" {
-		dumpSymlinks(ctx, *repoFlag, out)
+	if *v.repo != "" {
+		dumpSymlinks(ctx, *v.repo, out)
 	}
 
 	return nil
