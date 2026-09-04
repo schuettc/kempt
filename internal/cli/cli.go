@@ -21,6 +21,7 @@ type UsageError = tools.UsageError
 var (
 	ParseFlags = tools.ParseFlags
 	YesFlag    = tools.YesFlag
+	SplitArgs  = tools.SplitArgs
 )
 
 // commands holds the per-command registrations from the init() files. tools
