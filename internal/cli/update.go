@@ -24,9 +24,8 @@ var selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error)
 
 func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	fset := flag.NewFlagSet("update", flag.ContinueOnError)
-	fset.SetOutput(io.Discard)
-	if err := fset.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	if err := ParseFlags(fset, args, out); err != nil {
+		return err
 	}
 
 	st, existed, err := loadState()

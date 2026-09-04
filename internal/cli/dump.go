@@ -18,10 +18,9 @@ func init() {
 
 func runDump(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("dump", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	repoFlag := fs.String("repo", "", "repo directory for symlink detection")
-	if err := fs.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	if err := ParseFlags(fs, args, out); err != nil {
+		return err
 	}
 
 	ctx, err := newContext(".")

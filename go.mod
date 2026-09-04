@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/schuettc/tools-common v0.1.0
+	github.com/schuettc/tools-common v0.2.0
 )
 
 require (

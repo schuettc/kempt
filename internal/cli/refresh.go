@@ -28,10 +28,9 @@ var now = time.Now
 
 func runRefresh(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("refresh", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	manifestFlag := fs.String("manifest", "", "path to manifest")
-	if err := fs.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	if err := ParseFlags(fs, args, out); err != nil {
+		return err
 	}
 
 	st, existed, err := loadState()

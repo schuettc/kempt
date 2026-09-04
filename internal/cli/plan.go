@@ -27,14 +27,13 @@ var newContext = func(repoDir string) (*machine.Context, error) {
 
 func runPlan(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("plan", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	manifestFlag := fs.String("manifest", "", "path to manifest")
 	profileFlag := fs.String("profile", "", "profile to select")
 	packagesFlag := fs.String("packages", "", "comma-separated package names")
 	osFlag := fs.String("os", "", "override OS for dry-planning (e.g. linux, darwin)")
 	archFlag := fs.String("arch", "", "override Arch for dry-planning (e.g. amd64, arm64)")
-	if err := fs.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	if err := ParseFlags(fs, args, out); err != nil {
+		return err
 	}
 
 	_, selected, ctx, err := loadSelectedContext(*manifestFlag, *profileFlag, *packagesFlag, errw)

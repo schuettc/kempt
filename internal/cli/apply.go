@@ -37,13 +37,12 @@ func confirm() bool {
 
 func runApply(args []string, out, errw io.Writer) error {
 	fs := flag.NewFlagSet("apply", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
 	manifestFlag := fs.String("manifest", "", "path to manifest")
 	profileFlag := fs.String("profile", "", "profile to select")
 	packagesFlag := fs.String("packages", "", "comma-separated package names")
-	yes := fs.Bool("yes", false, "skip the confirmation prompt")
-	if err := fs.Parse(args); err != nil {
-		return UsageError{Msg: err.Error()}
+	yes := YesFlag(fs, "skip the confirmation prompt")
+	if err := ParseFlags(fs, args, out); err != nil {
+		return err
 	}
 
 	st, existed, err := loadState()
