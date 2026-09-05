@@ -146,31 +146,51 @@ func runApply(args []string, out, errw io.Writer) error {
 
 // executeAndVerify runs the plan then re-inspects every step Execute claims it
 // applied. If any is not now OpNoop, the machine did not actually converge and
-// the step is counted as failed. Returns (applied, failed).
+// the step is counted as failed. In a package that applied a change it also
+// re-inspects that package's pre-apply-blocked verify steps, so a verify of a
+// tool installed earlier in the same run is judged against post-apply state
+// rather than reported as spuriously blocked. Returns (applied, failed).
 func executeAndVerify(ctx *machine.Context, plan *engine.Plan, out io.Writer) (int, int) {
 	failed := engine.Execute(ctx, plan, out)
 	applied := 0
 	for i := range plan.Packages {
 		pp := &plan.Packages[i]
+		pkgChanged := false
+		for j := range pp.Steps {
+			if pp.Steps[j].Applied {
+				pkgChanged = true
+				break
+			}
+		}
 		for j := range pp.Steps {
 			sr := &pp.Steps[j]
-			if !sr.Applied {
-				continue
-			}
-			applied++
 			h, ok := engine.HandlerFor(sr.Step.Kind())
-			if !ok {
+			if sr.Applied {
+				applied++
+				if !ok {
+					continue
+				}
+				delta, err := h.Inspect(ctx, sr.Step)
+				if err != nil {
+					fmt.Fprintf(out, "! %s: re-inspect failed: %v\n", pp.Name, err)
+					failed++
+					continue
+				}
+				if delta.Op != engine.OpNoop {
+					fmt.Fprintf(out, "! %s: not converged after apply: %s\n", pp.Name, delta.Detail)
+					failed++
+				}
 				continue
 			}
-			delta, err := h.Inspect(ctx, sr.Step)
-			if err != nil {
-				fmt.Fprintf(out, "! %s: re-inspect failed: %v\n", pp.Name, err)
-				failed++
-				continue
-			}
-			if delta.Op != engine.OpNoop {
-				fmt.Fprintf(out, "! %s: not converged after apply: %s\n", pp.Name, delta.Detail)
-				failed++
+			// A verify step is inspected up front, against pre-apply state, and is
+			// never itself an OpChange the engine applies. When a sibling step in
+			// the same package installed the thing being verified this run, that
+			// stale OpBlocked is a false positive — re-inspect it against post-apply
+			// state so the run's blocked count reflects reality.
+			if ok && pkgChanged && sr.Delta.Op == engine.OpBlocked && sr.Step.Kind() == "verify" {
+				if delta, err := h.Inspect(ctx, sr.Step); err == nil {
+					sr.Delta = delta
+				}
 			}
 		}
 	}
