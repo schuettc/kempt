@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -193,6 +195,74 @@ func (nonConvergingHandler) Inspect(*machine.Context, manifest.Step) (engine.Del
 	return engine.Delta{Op: engine.OpChange, Detail: "line-in-file (never converges)"}, nil
 }
 func (nonConvergingHandler) Apply(*machine.Context, manifest.Step) error { return nil }
+
+// installThenPresentRunner simulates a package manager: the tool it installs
+// is absent from LookPath until its brew install command runs, then present.
+// It drives the first-install verify regression from muster thread #358.
+type installThenPresentRunner struct {
+	tool      string
+	installed bool
+}
+
+func (r *installThenPresentRunner) Run(name string, args ...string) (string, error) {
+	key := strings.TrimSpace(name + " " + strings.Join(args, " "))
+	switch key {
+	case "brew list --formula -1":
+		if r.installed {
+			return r.tool + "\n", nil
+		}
+		return "", nil
+	case "brew list --cask -1", "brew tap":
+		return "", nil
+	case "brew install " + r.tool:
+		r.installed = true
+		return "", nil
+	}
+	return "", fmt.Errorf("unscripted command: %s", key)
+}
+
+func (r *installThenPresentRunner) LookPath(name string) (string, error) {
+	if name == "brew" {
+		return "/usr/local/bin/brew", nil
+	}
+	if name == r.tool && r.installed {
+		return "/usr/local/bin/" + r.tool, nil
+	}
+	return "", exec.ErrNotFound
+}
+
+// TestApplyInstallThenVerifySameRun guards against a spurious "blocked" summary
+// when one package installs a tool AND verifies its presence in the same run.
+// The verify step is inspected pre-apply (tool absent -> OpBlocked); after the
+// install applies, apply must re-inspect it against post-apply state so the run
+// ends "1 applied, 0 failed" with no blocked line.
+func TestApplyInstallThenVerifySameRun(t *testing.T) {
+	home := t.TempDir()
+	src := `
+[kempt]
+spec = 1
+[packages.creel]
+description = "creel"
+  [[packages.creel.install]]
+  brew = { formulas = ["creel"] }
+  [[packages.creel.verify]]
+  command-exists = "creel"
+`
+	p := writeTemp(t, src)
+	withContextHome(t, home, &installThenPresentRunner{tool: "creel"})
+	var out, errw bytes.Buffer
+	code := Dispatch([]string{"apply", "-yes", "-manifest", p}, &out, &errw)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0; out=%s err=%s", code, out.String(), errw.String())
+	}
+	s := out.String()
+	if !strings.Contains(s, "1 applied, 0 failed") {
+		t.Fatalf("stdout missing '1 applied, 0 failed': %q", s)
+	}
+	if strings.Contains(s, "blocked (unresolved)") {
+		t.Fatalf("stdout should not report blocked after successful install+verify: %q", s)
+	}
+}
 
 func TestApplyConvergenceHonestyFails(t *testing.T) {
 	orig, _ := engine.HandlerFor("line-in-file")
