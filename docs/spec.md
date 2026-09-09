@@ -64,6 +64,12 @@ description = "just a pleasant shell"
 packages = ["core"]
 ```
 
+The `muster` package above is a minimal illustration. For the complete,
+production package — MCP registration and session hooks for Claude, Codex, and
+Cursor, the tmux mailbox, and the daemon service — run `muster setup --print
+kempt` (muster emits this exact block, so it never drifts from what
+`muster setup` applies for non-kempt users).
+
 ## Primitives (v1, closed set)
 
 The primitive set is closed. When a real capability gap appears, the answer is
