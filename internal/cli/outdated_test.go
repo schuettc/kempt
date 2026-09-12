@@ -29,45 +29,42 @@ func writeTempManifest(t *testing.T, content string) string {
 // tempdir (with the binaries named in runResponses created so os.Stat
 // passes), scripted with a FakeRunner from runResponses and FakeReleases from
 // releaseFiles. It returns a restore func.
-func stubContext(t *testing.T, repoDir string, runResponses map[string]string, releaseFiles map[string]string) func() {
+func stubContextRuns(t *testing.T, repoDir string, versionRuns, rawRuns, releaseFiles map[string]string) (func(), *run.FakeRunner) {
 	t.Helper()
 	home := t.TempDir()
 	binDir := filepath.Join(home, ".local", "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-
 	fr := &run.FakeRunner{Responses: map[string]run.Response{}}
-	for key, stdout := range runResponses {
-		// key is "<bin> version"; the FakeRunner is keyed on the resolved
-		// binPath(ctx, bin)+" version".
+	for key, stdout := range versionRuns {
 		bin := strings.TrimSuffix(key, " version")
 		fullKey := filepath.Join(binDir, bin) + " version"
 		fr.Responses[fullKey] = run.Response{Stdout: stdout}
-		// create the binary file so os.Stat passes.
 		if err := os.WriteFile(filepath.Join(binDir, bin), []byte(""), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-
+	for key, stdout := range rawRuns {
+		fr.Responses[key] = run.Response{Stdout: stdout}
+	}
 	rel := release.FakeReleases{Files: map[string][]byte{}}
 	for url, content := range releaseFiles {
 		rel.Files[url] = []byte(content)
 	}
-
 	orig := newContext
 	newContext = func(dir string) (*machine.Context, error) {
 		return &machine.Context{
-			Home:     home,
-			RepoDir:  dir,
-			OS:       "darwin",
-			Arch:     "arm64",
-			Runner:   fr,
-			Releases: rel,
-			Cache:    map[string]string{},
+			Home: home, RepoDir: dir, OS: "darwin", Arch: "arm64",
+			Runner: fr, Releases: rel, Cache: map[string]string{},
 		}, nil
 	}
-	return func() { newContext = orig }
+	return func() { newContext = orig }, fr
+}
+
+func stubContext(t *testing.T, repoDir string, runResponses, releaseFiles map[string]string) func() {
+	restore, _ := stubContextRuns(t, repoDir, runResponses, nil, releaseFiles)
+	return restore
 }
 
 func TestOutdatedListsBehind(t *testing.T) {

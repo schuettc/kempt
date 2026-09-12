@@ -49,12 +49,16 @@ func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io
 // toolStatus is one download tool's version standing.
 type toolStatus struct {
 	Tool, Bin, Site string
-	Mode            string // "pinned" | "latest"
-	Installed       string // "" when unknown
-	Target          string // pin, or resolved latest; "" when Err is set
-	Behind          bool   // see scanTools for the per-mode rule
-	Known           bool   // installed version was parseable
-	Err             error  // set when a "latest" tool's pointer could not be resolved
+	// Kind is "download" | "pi" | "npm". Ext carries the extension identity for
+	// pi/npm kinds (zero value for download).
+	Kind      string
+	Ext       handlers.ExtEntry
+	Mode      string // "pinned" | "latest"
+	Installed string // "" when unknown
+	Target    string // pin, or resolved latest; "" when Err is set
+	Behind    bool   // see scanTools for the per-mode rule
+	Known     bool   // installed version was parseable
+	Err       error  // set when a "latest" tool's pointer could not be resolved
 }
 
 // scanTools walks every download step in the selected packages and reports its
@@ -77,7 +81,7 @@ func scanTools(ctx *machine.Context, selected []*manifest.Package) ([]toolStatus
 				continue
 			}
 			installed, known := handlers.InstalledToolVersion(ctx, st.Bin)
-			ts := toolStatus{Tool: st.Tool, Bin: st.Bin, Site: st.Site, Installed: installed, Known: known}
+			ts := toolStatus{Kind: "download", Tool: st.Tool, Bin: st.Bin, Site: st.Site, Installed: installed, Known: known}
 			if handlers.IsPinnedVersion(st.Version) {
 				ts.Mode = "pinned"
 				ts.Target = st.Version
