@@ -23,14 +23,28 @@ type ExtEntry struct {
 func RollingExtensions(step manifest.InstallStep) []ExtEntry {
 	var out []ExtEntry
 	for _, e := range step.Pi {
-		if name, ver := splitNameVersion(e); ver == "" {
-			out = append(out, ExtEntry{Backend: "pi", Entry: e, Pkg: registryPkg(name)})
+		name, ver := splitNameVersion(e)
+		if ver != "" {
+			continue
 		}
+		// pi entries can be local paths or non-npm sources; only npm-registry
+		// sources (npm:<pkg>) are rolling.
+		if !strings.HasPrefix(name, "npm:") {
+			continue
+		}
+		out = append(out, ExtEntry{Backend: "pi", Entry: e, Pkg: registryPkg(name)})
 	}
 	for _, e := range step.Npm {
-		if name, ver := splitNameVersion(e); ver == "" {
-			out = append(out, ExtEntry{Backend: "npm", Entry: e, Pkg: registryPkg(name)})
+		name, ver := splitNameVersion(e)
+		if ver != "" {
+			continue
 		}
+		// npm entries can be local paths; skip anything that looks like a path
+		// (contains '/' and is not a @scope/name).
+		if strings.Contains(name, "/") && !strings.HasPrefix(name, "@") {
+			continue
+		}
+		out = append(out, ExtEntry{Backend: "npm", Entry: e, Pkg: registryPkg(name)})
 	}
 	return out
 }

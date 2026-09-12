@@ -32,6 +32,27 @@ func TestRollingExtensionsSelectsUnversioned(t *testing.T) {
 	}
 }
 
+func TestRollingExtensionsExcludesNonRegistry(t *testing.T) {
+	step := manifest.InstallStep{
+		Pi:  []string{"npm:pi-creel", "/Users/me/dev/pi-thing", "pi-bare"},
+		Npm: []string{"typescript", "@scope/x", "./local/pkg", "/abs/pkg"},
+	}
+	got := RollingExtensions(step)
+	want := []ExtEntry{
+		{Backend: "pi", Entry: "npm:pi-creel", Pkg: "pi-creel"},
+		{Backend: "npm", Entry: "typescript", Pkg: "typescript"},
+		{Backend: "npm", Entry: "@scope/x", Pkg: "@scope/x"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("want %d entries, got %d: %v", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("entry[%d] = %+v; want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 func TestExtLatestReadsNpmView(t *testing.T) {
 	ctx := extCtx(map[string]run.Response{
 		"npm view pi-creel version": {Stdout: "0.1.1\n"},
@@ -65,5 +86,31 @@ func TestRollExtensionRunsPiInstallAndInvalidatesCache(t *testing.T) {
 	}
 	if len(fr.Calls) != 1 || fr.Calls[0] != "pi install npm:pi-creel" {
 		t.Errorf("calls = %v", fr.Calls)
+	}
+}
+
+func TestRollExtensionNpmInstallsLatestAndInvalidatesCache(t *testing.T) {
+	fr := &run.FakeRunner{Responses: map[string]run.Response{
+		"npm install -g typescript@latest": {Stdout: ""},
+	}}
+	ctx := &machine.Context{Runner: fr, Cache: map[string]string{npmInventoryCmd: "stale"}}
+	if err := RollExtension(ctx, ExtEntry{Backend: "npm", Entry: "typescript", Pkg: "typescript"}); err != nil {
+		t.Fatalf("RollExtension: %v", err)
+	}
+	if _, cached := ctx.Cache[npmInventoryCmd]; cached {
+		t.Error("npm inventory cache not invalidated")
+	}
+	if len(fr.Calls) != 1 || fr.Calls[0] != "npm install -g typescript@latest" {
+		t.Errorf("calls = %v", fr.Calls)
+	}
+}
+
+func TestExtInstalledVersionFromNpmInventory(t *testing.T) {
+	ctx := extCtx(map[string]run.Response{
+		npmInventoryCmd: {Stdout: `{"dependencies":{"typescript":{"version":"5.4.0"}}}`},
+	})
+	v, known := ExtInstalledVersion(ctx, ExtEntry{Backend: "npm", Entry: "typescript", Pkg: "typescript"})
+	if !known || v != "5.4.0" {
+		t.Fatalf("ExtInstalledVersion = %q, %v; want 5.4.0, true", v, known)
 	}
 }

@@ -26,9 +26,10 @@ func writeTempManifest(t *testing.T, content string) string {
 }
 
 // stubContext overrides newContext to return a Context whose Home is a fresh
-// tempdir (with the binaries named in runResponses created so os.Stat
-// passes), scripted with a FakeRunner from runResponses and FakeReleases from
-// releaseFiles. It returns a restore func.
+// tempdir (with the binaries named in versionRuns created so os.Stat
+// passes), scripted with a FakeRunner from versionRuns and FakeReleases from
+// releaseFiles. rawRuns adds un-prefixed run keys (for example "pi list",
+// "npm view <pkg> version"). It returns a restore func.
 func stubContextRuns(t *testing.T, repoDir string, versionRuns, rawRuns, releaseFiles map[string]string) (func(), *run.FakeRunner) {
 	t.Helper()
 	home := t.TempDir()
@@ -62,6 +63,8 @@ func stubContextRuns(t *testing.T, repoDir string, versionRuns, rawRuns, release
 	return func() { newContext = orig }, fr
 }
 
+// stubContext is a convenience wrapper around stubContextRuns for callers that
+// need no raw runs.
 func stubContext(t *testing.T, repoDir string, runResponses, releaseFiles map[string]string) func() {
 	restore, _ := stubContextRuns(t, repoDir, runResponses, nil, releaseFiles)
 	return restore

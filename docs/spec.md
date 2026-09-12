@@ -111,7 +111,7 @@ manifest-pinned version. When omitted, `version` defaults to `"latest"`.
 release each time. In `plan` output, it is presence-only — `plan` shows it only
 if the tool is already installed, never as a change to apply. Use `kempt outdated`
 to check for new releases and `kempt upgrade` to install them; `kempt update` also
-rolls latest tools via its roll step, while `plan`/`apply` stay offline.
+rolls latest tools via its roll step.
 `outdated`, `upgrade`, and the `kempt update` roll step are the only paths that
 reach the network for versions; `plan`/`apply` never do.
 
