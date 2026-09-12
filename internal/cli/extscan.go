@@ -1,6 +1,10 @@
 package cli
 
 import (
+	"fmt"
+	"io"
+
+	"github.com/schuettc/kempt/internal/engine"
 	"github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
@@ -34,4 +38,49 @@ func scanExtensions(ctx *machine.Context, selected []*manifest.Package) ([]toolS
 		}
 	}
 	return out, nil
+}
+
+// rollRolling resolves and rolls every behind rolling entry (download
+// version=latest and unversioned npm/pi) to newest. Used by update between
+// self-update and converge so `update` lands the machine on latest for rolling
+// entries and the pin for pinned ones. Network path; a per-entry resolution or
+// roll failure is a warning, not fatal, so one unreachable registry or site
+// never aborts the whole update. Pinned entries are handled by the offline
+// converge that follows, not here.
+func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writer) error {
+	statuses, err := scanTools(ctx, selected)
+	if err != nil {
+		return err
+	}
+	exts, err := scanExtensions(ctx, selected)
+	if err != nil {
+		return err
+	}
+	statuses = append(statuses, exts...)
+
+	h, _ := engine.HandlerFor("download")
+	for _, s := range statuses {
+		if s.Mode != "latest" {
+			continue
+		}
+		if s.Err != nil {
+			fmt.Fprintf(out, "skipping %s: could not resolve latest: %v\n", s.Tool, s.Err)
+			continue
+		}
+		if !s.Behind {
+			continue
+		}
+		var aerr error
+		if s.Kind == "download" {
+			aerr = h.Apply(ctx, manifest.DownloadStep{Site: s.Site, Tool: s.Tool, Version: s.Target, Bin: s.Bin})
+		} else {
+			aerr = handlers.RollExtension(ctx, s.Ext)
+		}
+		if aerr != nil {
+			fmt.Fprintf(out, "skipping %s: %v\n", s.Tool, aerr)
+			continue
+		}
+		fmt.Fprintf(out, "rolled %s to %s\n", s.Tool, s.Target)
+	}
+	return nil
 }
