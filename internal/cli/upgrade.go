@@ -6,17 +6,17 @@ import (
 	"io"
 
 	"github.com/schuettc/kempt/internal/engine"
-	_ "github.com/schuettc/kempt/internal/engine/handlers"
+	"github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/manifest"
 )
 
 func init() {
 	Register(Command{
 		Name:     "upgrade",
-		Summary:  "upgrade installed tools to newer releases",
+		Summary:  "upgrade installed tools and extensions to newer releases",
 		Synopsis: "upgrade [flags] [tool...]",
-		Help: "Upgrades installed download-tools that are behind. With no tool names,\n" +
-			"considers all; names limit it to those tools. Prompts unless -yes.",
+		Help: "Upgrades installed tools and extensions that are behind. With no names,\n" +
+			"considers all; names limit it to those. Prompts unless -yes.",
 		NewFlags: func() *flag.FlagSet { fs, _ := newUpgradeFlags(); return fs },
 		Run:      runUpgrade,
 	})
@@ -66,6 +66,12 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 		return err
 	}
 
+	exts, err := scanExtensions(ctx, selected)
+	if err != nil {
+		return err
+	}
+	statuses = append(statuses, exts...)
+
 	var todo []toolStatus
 	for _, s := range statuses {
 		if len(only) != 0 && !only[s.Tool] {
@@ -96,12 +102,18 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 
 	h, _ := engine.HandlerFor("download")
 	for _, s := range todo {
-		// Version is the exact resolved target scanTools reported, so a
-		// "latest" tool installs the version just resolved (no second
-		// pointer read that could race a newer release).
-		step := manifest.DownloadStep{Site: s.Site, Tool: s.Tool, Version: s.Target, Bin: s.Bin}
-		if err := h.Apply(ctx, step); err != nil {
-			return fmt.Errorf("upgrade %s: %w", s.Tool, err)
+		if s.Kind == "download" {
+			// Version is the exact resolved target scanTools reported, so a
+			// "latest" tool installs the version just resolved (no second
+			// pointer read that could race a newer release).
+			step := manifest.DownloadStep{Site: s.Site, Tool: s.Tool, Version: s.Target, Bin: s.Bin}
+			if err := h.Apply(ctx, step); err != nil {
+				return fmt.Errorf("upgrade %s: %w", s.Tool, err)
+			}
+		} else {
+			if err := handlers.RollExtension(ctx, s.Ext); err != nil {
+				return fmt.Errorf("upgrade %s: %w", s.Tool, err)
+			}
 		}
 		fmt.Fprintf(out, "upgraded %s to %s\n", s.Tool, s.Target)
 	}

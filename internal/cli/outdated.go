@@ -12,9 +12,9 @@ import (
 func init() {
 	Register(Command{
 		Name:     "outdated",
-		Summary:  "list installed tools with newer releases",
+		Summary:  "list installed tools and extensions with newer releases",
 		Synopsis: "outdated [flags]",
-		Help:     "Lists installed download-tools that are behind their pinned or latest version. -json for machine output.",
+		Help:     "Lists installed tools and extensions that are behind their pinned or latest version. -json for machine output.",
 		NewFlags: func() *flag.FlagSet { fs, _ := newOutdatedFlags(); return fs },
 		Run:      runOutdated,
 	})
@@ -57,6 +57,12 @@ func runOutdated(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	exts, err := scanExtensions(ctx, selected)
+	if err != nil {
+		return err
+	}
+	statuses = append(statuses, exts...)
 
 	if *v.json {
 		return printOutdatedJSON(out, statuses)
