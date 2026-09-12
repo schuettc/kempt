@@ -35,7 +35,7 @@ shell hook that doesn't exist.
 
 Software class: `install` (backends `brew` / `winget` / `apt` / `npm` / `pi` —
 additive; `npm`/`pi` entries may be pinned `name@version` to converge to an exact
-version), `github-release` (asset templating + `checksums.txt` verify + atomic
+version, or left unversioned to track latest (rolling)), `github-release` (asset templating + `checksums.txt` verify + atomic
 install), `download` (fetch from a domain distribution + `.sha256` sidecar),
 `git-clone` (pinned ref), `service` (launchd / systemd `--user`).
 
@@ -79,5 +79,7 @@ manifest repo onto a fresh machine.
   resolved against the wrong base — prefer an absolute `-manifest` path.
 - An `install` reinstall on a pinned `npm`/`pi` entry means the installed version
   differs from the pin — that's correct behavior; bump the pin or the machine.
+- An `install` reinstall on an unversioned `npm`/`pi` entry means a newer version
+  was published - that is a rolling roll, expected on `update`/`upgrade`.
 - A `json-merge`/`toml-merge` that never settles means a value kempt writes
   differs from what's on disk — inspect the target file against the merge subtree.

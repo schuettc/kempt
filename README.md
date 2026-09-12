@@ -51,12 +51,16 @@ repeating `-manifest`/`-profile`:
 - **`kempt status`** — show the cached result of the last refresh.
 - **`kempt refresh`** — fetch the repo and recompute pending changes; with
   auto-apply enabled it applies files-class changes only (never software).
-- **`kempt update`** — pull the repo, self-update the binary, and converge.
-- **`kempt outdated`** — list installed download tools with newer releases
-  (offline for pinned `version`s; reads `/dl/<tool>/latest` for `version = "latest"`).
-- **`kempt upgrade [tool…]`** — install newer releases: to the manifest pin, or
-  to the current `latest`. Prompts unless `-yes`. This and `outdated` are the
-  only commands that reach the network for tool versions; `plan`/`apply` never do.
+- **`kempt update`** - pull the repo, self-update the binary, roll rolling
+  entries (unversioned `npm`/`pi` and `download version = "latest"`) to latest,
+  then converge (pinned entries to their pin).
+- **`kempt outdated`** - list installed tools and extensions with newer
+  releases (offline for pinned versions; resolves latest over the network for
+  rolling entries).
+- **`kempt upgrade [name…]`** - roll installed tools and extensions that are
+  behind to latest. Prompts unless `-yes`. This, `outdated`, and the `update`
+  roll step are the only paths that reach the network for versions; `plan`/`apply`
+  never do.
 - **`kempt adopt <pkg>`** / **`kempt drop <pkg>`** — add or remove a package
   (and its needs) in the saved selection.
 - **`kempt config auto-apply-files [true|false]`** — get or set whether refresh
