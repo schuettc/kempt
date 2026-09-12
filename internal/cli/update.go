@@ -67,7 +67,8 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 		fmt.Fprintf(out, "kempt updated to %s\n", newVer)
 	}
 
-	// 3. Converge config from the freshly-pulled repo.
+	// 3. Load and select from the freshly-pulled repo so the roll step and the
+	// converge below share one selection.
 	manifestPath := filepath.Join(st.RepoDir, "kempt.toml")
 	src, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -88,6 +89,15 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	if err != nil {
 		return UsageError{Msg: err.Error()}
 	}
+
+	// 4. Roll rolling entries (unversioned npm/pi and download version=latest)
+	// to newest, so update lands the machine on latest for rolling entries and
+	// the pin for pinned ones. Network path; best-effort per entry.
+	if err := rollRolling(ctx, selected, out); err != nil {
+		return err
+	}
+
+	// 5. Converge config from the freshly-pulled repo.
 	plan, err := engine.BuildPlan(ctx, selected)
 	if err != nil {
 		return err

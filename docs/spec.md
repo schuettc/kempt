@@ -77,7 +77,7 @@ a new versioned primitive in kempt, not a script hook.
 
 | Primitive | Safety class | Notes |
 |---|---|---|
-| `install` | software | Per-OS/cross-platform backends: `brew` (formulas/casks/taps), `winget`, `apt`, `npm` (global packages), `pi` (more later). Backends are additive — `npm`/`pi` install on any host that has the runtime, alongside the OS backend. Kempt selects the applicable backends at plan time; a platform with no matching backend skips or plan-errors per `only`/`needs`. `install.npm` and `install.pi` entries may be **pinned** as `name@version` (version embedded in the string — no schema change): kempt then converges to that exact version, reinstalling on `kempt update` when the installed version differs. Unversioned entries stay presence-only (satisfied by any installed version). |
+| `install` | software | Per-OS/cross-platform backends: `brew` (formulas/casks/taps), `winget`, `apt`, `npm` (global packages), `pi` (more later). Backends are additive — `npm`/`pi` install on any host that has the runtime, alongside the OS backend. Kempt selects the applicable backends at plan time; a platform with no matching backend skips or plan-errors per `only`/`needs`. `install.npm` and `install.pi` entries may be **pinned** as `name@version` (version embedded in the string — no schema change): kempt then converges to that exact version, reinstalling on `kempt update` when the installed version differs. Unversioned `npm`/`pi` entries are ROLLING: they track the newest published version, rolled forward by `kempt upgrade` and by the `kempt update` roll step, and reported by `kempt outdated`; the offline `plan`/`apply` treat them as presence-only (install if absent, never rolled), so the plan stays deterministic. |
 | `github-release` | software | Asset templating `{os}`/`{arch}`; downloads asset + `checksums.txt`, sha256-verifies, stages to `.$bin.new.$$`, atomic `mv -f` into `~/.local/bin` (running daemons keep their inode). |
 | `download` | software | Fetch a binary from a domain distribution (not GitHub). Resolves `version` (`latest` by default, or a pinned semver), downloads the family URL, verifies its `.sha256` sidecar, and installs `bin` into `~/.local/bin` via the same stage-and-atomic-`mv` path as `github-release`. See the family-URL contract below. |
 | `git-clone` | software | Pinned ref or branch. |
@@ -110,8 +110,10 @@ manifest-pinned version. When omitted, `version` defaults to `"latest"`.
 **`version = "latest"`** (rolling): The download fetches the latest available
 release each time. In `plan` output, it is presence-only — `plan` shows it only
 if the tool is already installed, never as a change to apply. Use `kempt outdated`
-to check for new releases and `kempt upgrade` to install them; these are the only
-commands that reach the network for tool versions.
+to check for new releases and `kempt upgrade` to install them; `kempt update` also
+rolls latest tools via its roll step.
+`outdated`, `upgrade`, and the `kempt update` roll step are the only paths that
+reach the network for versions; `plan`/`apply` never do.
 
 **`version = "x.y.z"`** (pinned): The download locks to the specific semver. If
 the installed version differs, `plan` shows `upgrade <bin> <old> -> <pin>` drift
