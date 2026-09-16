@@ -52,6 +52,36 @@ kempt — not a workaround.** Do not model an exec/script step; there is none by
 design, and that absence is the whole trust story. Say so plainly to the user and
 file it as a kempt feature request.
 
+## Conventions (make plan 0-drift AND reproducible)
+
+A converged machine shows all no-ops. Two conventions keep it that way; violate
+either and `kempt plan` starts showing changes that "should" be no-ops.
+
+**Command-path resolution — key the style to the consumer, not to habit.** A
+command string is resolved by whatever reads it, so write it the way that reader
+resolves paths:
+
+| Consumer of the string | Style | Because |
+|---|---|---|
+| Resolves via `$PATH` | **bare** (`muster`) | host has `~/.local/bin` on PATH — MCP `command` entries, pi `channels.json`, codex `config.toml` mcp_servers |
+| Expands `~` | **`~/.local/bin/…`** | tilde-aware — Claude `settings.json` hooks, symlink `to` |
+| Neither expands `~` nor has the dir on PATH | **`${HOME}/.local/bin/…`** absolute | must be literal — launchd/systemd `service`, codex `hooks.json` |
+
+When a value could go either way, the one that matches the **known-good live
+file** wins; if the standardized style and the working value disagree, the
+standard is wrong for that consumer — re-classify it, don't force it.
+
+**Ground-truth comments.** A comment may only assert what's live-verifiable. No
+"subset / handled elsewhere / dropped" claims that a `kempt plan` or a live file
+would contradict. Stale comments are the most common way a reviewed manifest
+lies; treat them as part of the diff, not decoration.
+
+**Verify what's independently checkable.** Every package with a CLI binary gets a
+`command-exists`; every `symlink` a `symlink-target`; every `service`/endpoint an
+`http-ok` where one exists. A package legitimately carries zero `verify` only when
+nothing it does is independently checkable (a GUI-only cask, or a package that
+only writes a config file whose producing binary is verified in another package).
+
 ## Selection vs. manifest
 
 `kempt adopt <pkg>` / `kempt drop <pkg>` edit which packages this machine has
