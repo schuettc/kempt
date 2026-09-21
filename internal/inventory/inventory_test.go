@@ -1,6 +1,8 @@
 package inventory
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/schuettc/kempt/internal/machine"
@@ -43,6 +45,35 @@ func TestPiInventoryTwoLineFormat(t *testing.T) {
 	}
 	if _, ok := inv["/Users/you/.pi/agent/git/github.com/obra/superpowers"]; ok {
 		t.Fatal("resolved-path continuation line must not be an entry")
+	}
+}
+
+func TestPiInventoryResolvesRollingVersionFromPackageJSON(t *testing.T) {
+	// A rolling (unversioned `npm:`) entry has no @version in its `pi list`
+	// spec line; the installed version lives in the resolved package's
+	// package.json, reachable via the deeper-indented resolved-path line.
+	// inventory.Pi must resolve it, or outdated/upgrade can never tell a
+	// rolling extension is behind.
+	pkgDir := filepath.Join(t.TempDir(), "node_modules", "pi-mcp-adapter")
+	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkgDir, "package.json"),
+		[]byte(`{"name":"pi-mcp-adapter","version":"2.35.0"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout := "User packages:\n" +
+		"  npm:pi-mcp-adapter\n" +
+		"    " + pkgDir + "\n"
+	c := ctxWith(&run.FakeRunner{Responses: map[string]run.Response{
+		"pi list": {Stdout: stdout},
+	}})
+	inv, err := Pi(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv["npm:pi-mcp-adapter"] != "2.35.0" {
+		t.Fatalf("rolling entry version = %q, want 2.35.0 (resolved from package.json)", inv["npm:pi-mcp-adapter"])
 	}
 }
 
