@@ -6,3 +6,5 @@
 
 # SDD design docs (plans/specs) — kept local, not committed
 docs/superpowers/
+.worktrees/
+.superpowers/
