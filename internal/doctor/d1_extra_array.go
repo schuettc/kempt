@@ -50,7 +50,7 @@ func CheckExtraArray(ctx *machine.Context, pkgs []*manifest.Package) []Finding {
 					Check:       "extra-array",
 					Package:     pkg.Name,
 					Severity:    sev,
-					Detail:      fmt.Sprintf("%s .%s has %d undeclared entr(y/ies): %v", file, key, len(extras), extras),
+					Detail:      fmt.Sprintf("%s .%s has %d undeclared entries: %v", file, key, len(extras), extras),
 					Remediation: rem,
 				})
 			}
