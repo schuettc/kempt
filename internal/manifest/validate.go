@@ -16,6 +16,7 @@ func Validate(m *Manifest) []Finding {
 	findings = append(findings, validateOnly(m)...)
 	findings = append(findings, validateProfiles(m)...)
 	findings = append(findings, validateStepFields(m)...)
+	findings = append(findings, validateInstallSettingsPackages(m)...)
 	return findings
 }
 
@@ -270,6 +271,84 @@ func missingFields(s Step) []string {
 		req(hasCheck, "verify")
 	}
 	return missing
+}
+
+// isPiSettingsFile reports whether a json-merge file targets the pi agent
+// settings.json.
+func isPiSettingsFile(file string) bool {
+	return strings.HasSuffix(file, "/.pi/agent/settings.json") ||
+		strings.Contains(file, "pi/agent/settings.json")
+}
+
+// Rule L1: for a package that has both an install step with a non-empty Pi
+// list and a json-merge step targeting the pi settings with a packages array,
+// the two must be set-equal string-for-string.
+func validateInstallSettingsPackages(m *Manifest) []Finding {
+	var findings []Finding
+	for _, name := range sortedPackageNames(m) {
+		pkg := m.Packages[name]
+		var installPi []string
+		var mergePkgs []string
+		hasInstall := false
+		hasMerge := false
+		for _, step := range pkg.Steps {
+			switch v := step.(type) {
+			case InstallStep:
+				if len(v.Pi) > 0 {
+					hasInstall = true
+					installPi = append(installPi, v.Pi...)
+				}
+			case JSONMergeStep:
+				if !isPiSettingsFile(v.File) {
+					continue
+				}
+				raw, ok := v.Merge["packages"].([]any)
+				if !ok {
+					continue
+				}
+				hasMerge = true
+				for _, e := range raw {
+					if s, ok := e.(string); ok {
+						mergePkgs = append(mergePkgs, s)
+					}
+				}
+			}
+		}
+		if !hasInstall || !hasMerge {
+			continue
+		}
+		if diff := firstSetDiff(installPi, mergePkgs); diff != "" {
+			findings = append(findings, Finding{
+				Path: "packages." + name,
+				Msg:  fmt.Sprintf("install pi list and settings-merge packages differ string-for-string: %s", diff),
+			})
+		}
+	}
+	return findings
+}
+
+// firstSetDiff returns a description of the first differing entry between two
+// string sets, or "" when the sets are equal (order-insensitive).
+func firstSetDiff(a, b []string) string {
+	setA := map[string]bool{}
+	for _, s := range a {
+		setA[s] = true
+	}
+	setB := map[string]bool{}
+	for _, s := range b {
+		setB[s] = true
+	}
+	for _, s := range a {
+		if !setB[s] {
+			return fmt.Sprintf("%q in install but not in packages", s)
+		}
+	}
+	for _, s := range b {
+		if !setA[s] {
+			return fmt.Sprintf("%q in packages but not in install", s)
+		}
+	}
+	return ""
 }
 
 // Rule 6: per-step required fields.
