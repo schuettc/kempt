@@ -51,6 +51,18 @@ func TestD1ReplaceExtrasAreError(t *testing.T) {
 	}
 }
 
+func TestD1ExpandsHomeToken(t *testing.T) {
+	ctx := ctxT(t)
+	f := filepath.Join(t.TempDir(), "settings.json")
+	// Live file holds the expanded absolute path built from the same home
+	// the ctx uses; the manifest declares it via the ${HOME} token.
+	writeFile(t, f, `{"skills":["`+ctx.Home+`/x"]}`)
+	pkgs := pkgWithMerge(f, map[string]any{"skills": []any{"${HOME}/x"}}, "replace")
+	if got := CheckExtraArray(ctx, pkgs); len(got) != 0 {
+		t.Fatalf("want none (${HOME} should expand to match live), got %+v", got)
+	}
+}
+
 func TestD1CleanNoFindings(t *testing.T) {
 	ctx := ctxT(t)
 	f := filepath.Join(t.TempDir(), "settings.json")

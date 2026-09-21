@@ -28,7 +28,10 @@ func CheckDupIdentity(ctx *machine.Context, pkgs []*manifest.Package) []Finding 
 			if json.Unmarshal(b, &live) != nil {
 				continue
 			}
-			for key := range jm.Merge {
+			// Normalize the manifest merge (expand ${HOME}, round-trip types)
+			// so declared keys align with the live file's expanded paths.
+			desiredMerge, _ := jsonutil.ExpandHome(jsonutil.ToAny(jm.Merge), ctx.Home).(map[string]any)
+			for key := range desiredMerge {
 				current, ok := live[key].([]any)
 				if !ok {
 					continue

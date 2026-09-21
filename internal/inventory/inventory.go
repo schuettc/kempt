@@ -61,10 +61,24 @@ func Pi(ctx *machine.Context) (map[string]string, error) {
 		return nil, err
 	}
 	inv := map[string]string{}
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
+	// Real `pi list` output is two lines per package: a spec line, then a
+	// deeper-indented resolved path. Track the indent of the first content
+	// (non-blank, non-header) line as the package-entry indent; any content
+	// line indented MORE than that is a resolved-path continuation and is
+	// skipped. Measure indentation on the raw line, before trimming.
+	entryIndent := -1
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(raw)
 		// Skip blank lines and section-header lines (e.g. "User packages:").
 		if line == "" || strings.HasSuffix(line, ":") {
+			continue
+		}
+		indent := len(raw) - len(strings.TrimLeft(raw, " \t"))
+		if entryIndent == -1 {
+			entryIndent = indent
+		}
+		if indent > entryIndent {
+			// Deeper-indented resolved-path continuation line.
 			continue
 		}
 		name, ver := splitNameVersion(line)

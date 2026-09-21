@@ -27,7 +27,10 @@ func CheckExtraArray(ctx *machine.Context, pkgs []*manifest.Package) []Finding {
 			if json.Unmarshal(b, &live) != nil {
 				continue
 			}
-			for key, dv := range jm.Merge {
+			// Normalize the manifest merge (expand ${HOME}, round-trip types)
+			// so declared array entries match live absolute paths.
+			desiredMerge, _ := jsonutil.ExpandHome(jsonutil.ToAny(jm.Merge), ctx.Home).(map[string]any)
+			for key, dv := range desiredMerge {
 				desired, ok := toArray(dv)
 				if !ok {
 					continue
