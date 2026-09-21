@@ -178,6 +178,12 @@ a concrete `remediation` string. `doctor` is report-only in v1 — there is no
 | **D4** broken/foreign managed symlinks | For every `symlink` step, `lstat` the `to` path and report broken (dangling), foreign (a real file/dir where the repo symlink belongs — the `backup`-would-fire case), or mispointed links, covering links with no `verify` step. | `error` (broken), `warn` (foreign/mispointed) |
 | **D5** plan/verify rollup | Runs the plan and the `verify` steps for the selection and summarizes pending changes, blocked steps, and verify pass/fail, so ordinary "machine is behind the manifest" state shows in the same report. | `info` (blocked steps and verify failures promoted to `error`) |
 
+The **D3 orphan check is selection-scoped**: it compares the machine's full
+installed set against the declared installs of the *selected* packages only. Run
+`doctor` with the full saved selection (omit `-packages`) for an accurate orphan
+report — a narrow `-packages` selection reports everything the other packages
+install as an orphan, which is correct but noisy.
+
 ### Exit codes
 
 - `0` — healthy: no findings at the failing threshold.

@@ -326,3 +326,25 @@ func TestValidateReferenceIsClean(t *testing.T) {
 		t.Fatalf("reference should validate clean: %v", f)
 	}
 }
+
+func TestValidateNonPiSettingsMergeNotChecked(t *testing.T) {
+	// A path that merely embeds "pi/agent/settings.json" (via "happi") must NOT
+	// be treated as the pi settings file, so the install<->packages
+	// string-for-string rule does not fire on it.
+	src := []byte(`
+spec = 1
+[packages.x]
+[[packages.x.install]]
+pi = ["npm:a"]
+[[packages.x.json-merge]]
+file = "/opt/happi/agent/settings.json"
+merge = { packages = ["npm:b"] }
+`)
+	m, f := Parse(src)
+	f = append(f, Validate(m)...)
+	for _, x := range f {
+		if strings.Contains(x.Msg, "string-for-string") {
+			t.Fatalf("non-pi settings file must be ignored by L1; got %+v", f)
+		}
+	}
+}
