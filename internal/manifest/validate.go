@@ -276,8 +276,11 @@ func missingFields(s Step) []string {
 // isPiSettingsFile reports whether a json-merge file targets the pi agent
 // settings.json.
 func isPiSettingsFile(file string) bool {
-	return strings.HasSuffix(file, "/.pi/agent/settings.json") ||
-		strings.Contains(file, "pi/agent/settings.json")
+	// Anchor on the `/.pi/` segment (dot + separator) so an unrelated path that
+	// merely embeds the substring (e.g. `.../happi/agent/settings.json`) does not
+	// match. Covers the global `~/.pi/agent/settings.json` and a project-local
+	// `.pi/agent/settings.json`.
+	return file == ".pi/agent/settings.json" || strings.HasSuffix(file, "/.pi/agent/settings.json")
 }
 
 // Rule L1: for a package that has both an install step with a non-empty Pi

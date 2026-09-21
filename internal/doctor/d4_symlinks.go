@@ -3,7 +3,6 @@ package doctor
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
@@ -22,7 +21,11 @@ func CheckSymlinks(ctx *machine.Context, pkgs []*manifest.Package) []Finding {
 			if err != nil {
 				continue // absent → plan will create it
 			}
-			want := filepath.Join(ctx.RepoDir, sl.From)
+			// Match the symlink handler's own target basis exactly: it links to
+			// ctx.Expand(From), which resolves ~, absolute, and repo-relative From
+			// alike. filepath.Join(RepoDir, From) would only agree for repo-relative
+			// From and would false-positive on a ~/ or absolute From.
+			want := ctx.Expand(sl.From)
 			if fi.Mode()&os.ModeSymlink == 0 {
 				out = append(out, Finding{
 					Check: "symlink", Package: pkg.Name, Severity: Warn,
