@@ -10,6 +10,7 @@ type rawManifest struct {
 	} `toml:"kempt"`
 	Packages map[string]rawPackage `toml:"packages"`
 	Profiles map[string]rawProfile `toml:"profiles"`
+	Doctor   *DoctorConfig         `toml:"doctor"`
 }
 
 type rawProfile struct {
@@ -71,6 +72,7 @@ func Parse(src []byte) (*Manifest, []Finding) {
 		Spec:     raw.Kempt.Spec,
 		Packages: map[string]*Package{},
 		Profiles: map[string]*Profile{},
+		Doctor:   raw.Doctor,
 	}
 	for name, rp := range raw.Packages {
 		m.Packages[name] = &Package{

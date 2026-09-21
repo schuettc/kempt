@@ -14,6 +14,16 @@ type Manifest struct {
 	Spec     int
 	Packages map[string]*Package
 	Profiles map[string]*Profile
+	Doctor   *DoctorConfig
+}
+
+// DoctorConfig is the optional top-level [doctor] block tuning read-only health
+// checks. CheckNpmOrphans opts in to reporting orphaned global npm packages;
+// Ignore suppresses specific installed identities (exact, npm:-prefixed, or
+// glob: patterns).
+type DoctorConfig struct {
+	CheckNpmOrphans bool     `toml:"checkNpmOrphans"`
+	Ignore          []string `toml:"ignore"`
 }
 
 type Package struct {

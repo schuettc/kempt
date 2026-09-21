@@ -19,6 +19,14 @@
     "profiles": {
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/profile" }
+    },
+    "doctor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checkNpmOrphans": { "type": "boolean" },
+        "ignore": { "type": "array", "items": { "type": "string" } }
+      }
     }
   },
   "$defs": {
