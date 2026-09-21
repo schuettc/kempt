@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/schuettc/kempt/internal/engine"
+	"github.com/schuettc/kempt/internal/inventory"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 	"github.com/schuettc/kempt/internal/run"
@@ -695,10 +696,10 @@ func TestNpmInventoryNonJSON(t *testing.T) {
 	}}
 	ctx := installCtx(t, "darwin", fake)
 
-	// npmInventory itself must return an error.
-	_, err := npmInventory(ctx)
+	// inventory.Npm itself must return an error.
+	_, err := inventory.Npm(ctx)
 	if err == nil {
-		t.Fatal("npmInventory: expected error on non-JSON stdout, got nil")
+		t.Fatal("inventory.Npm: expected error on non-JSON stdout, got nil")
 	}
 
 	// Inspect (via npmInspect) must propagate the error rather than returning
@@ -721,9 +722,9 @@ func TestNpmInventoryParse(t *testing.T) {
 		npmInvCmd: {Stdout: `{"dependencies":{"pkg":{"version":"1.2.3"},"@scope/n":{"version":"0.4.0"}}}`},
 	}}
 	ctx := installCtx(t, "darwin", fake)
-	inv, err := npmInventory(ctx)
+	inv, err := inventory.Npm(ctx)
 	if err != nil {
-		t.Fatalf("npmInventory: %v", err)
+		t.Fatalf("inventory.Npm: %v", err)
 	}
 	want := map[string]string{"pkg": "1.2.3", "@scope/n": "0.4.0"}
 	if !reflect.DeepEqual(inv, want) {
@@ -733,9 +734,9 @@ func TestNpmInventoryParse(t *testing.T) {
 	// Empty dependencies → empty map.
 	fake2 := &run.FakeRunner{Responses: map[string]run.Response{npmInvCmd: {Stdout: `{}`}}}
 	ctx2 := installCtx(t, "darwin", fake2)
-	inv2, err := npmInventory(ctx2)
+	inv2, err := inventory.Npm(ctx2)
 	if err != nil {
-		t.Fatalf("npmInventory empty: %v", err)
+		t.Fatalf("inventory.Npm empty: %v", err)
 	}
 	if len(inv2) != 0 {
 		t.Fatalf("empty inv = %v; want empty", inv2)

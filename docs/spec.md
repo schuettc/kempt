@@ -154,7 +154,69 @@ Future spec revisions bump this field, and older engines refuse manifests from
 the future rather than mis-parse them. A published JSON Schema gives TOML LSPs
 (taplo) completion and validation while authoring.
 
+## doctor
+
+`kempt doctor` is a read-only machine-vs-manifest drift and health check. It
+reports divergence the other commands cannot see by design — the tolerant
+semantics that keep `plan` honest also make some drift invisible to it — and it
+never mutates the machine. Selection resolves identically to `plan`/`verify`
+(the saved selection when flags are omitted); it accepts `-manifest`,
+`-profile`, and `-packages`, plus `-json` (machine-readable findings) and
+`-strict` (treat `warn`-level findings as failures for the exit code).
+
+Each check yields zero or more **findings**, each carrying a `check` id, a
+`severity` (`error`/`warn`/`info`), the attributable `package`, a `detail`, and
+a concrete `remediation` string. `doctor` is report-only in v1 — there is no
+`--fix`; the remediation is always an existing command (`kempt apply`,
+`kempt adopt`, …).
+
+| Check | What it reports | Severity |
+|---|---|---|
+| **D1** extra-array drift | Live elements of a `json-merge`-managed array the manifest does not declare (the inverse of the subset check `plan` uses, so it fires even for `arrays = "append"` merges). | `warn` (`error` when the step is `arrays = "replace"`) |
+| **D2** duplicate identity | Entries in a managed array that normalize to the same identity — a trailing `@version` and the `npm:`/`git:` scheme are stripped, so `npm:pi-quiet@0.2.0` ≡ `npm:pi-quiet`; git identity is the repo URL without `@ref`, local is the resolved path. | `warn` |
+| **D3** orphaned installs | Installed software absent from the manifest: `pi list` vs the union of `install.pi` specs, and (opt-in) `npm ls -g` vs `install.npm`. | `warn` (pi), `info` (npm) |
+| **D4** broken/foreign managed symlinks | For every `symlink` step, `lstat` the `to` path and report broken (dangling), foreign (a real file/dir where the repo symlink belongs — the `backup`-would-fire case), or mispointed links, covering links with no `verify` step. | `error` (broken), `warn` (foreign/mispointed) |
+| **D5** plan/verify rollup | Runs the plan and the `verify` steps for the selection and summarizes pending changes, blocked steps, and verify pass/fail, so ordinary "machine is behind the manifest" state shows in the same report. | `info` (blocked steps and verify failures promoted to `error`) |
+
+### Exit codes
+
+- `0` — healthy: no findings at the failing threshold.
+- `1` — findings present at the failing threshold (`error` by default; `-strict`
+  lowers it to `warn`, so CI can gate hard; `info` never fails).
+- `2` — usage/parse error, consistent with the other commands.
+
+### `[doctor]` config
+
+A top-level `[doctor]` block tunes the machine-health checks:
+
+```toml
+[doctor]
+checkNpmOrphans = false
+ignore = ["pi-quiet", "npm:some-tool", "glob:internal-*"]
+```
+
+- `checkNpmOrphans` (bool, default `false`) — enable D3's npm-orphan comparison.
+  Off by default because a global npm install set is noisy with hand-installed
+  tools.
+- `ignore` (array of strings) — suppress known-intentional out-of-band installs
+  from the orphan check. Each entry is either an exact spec, a backend-qualified
+  id (`npm:<id>`), or a glob (`glob:<pattern>`).
+
+### lint invariant (offline)
+
+`kempt lint` enforces one manifest-internal rule that `doctor` does not: when a
+package declares both an `install.pi` list and a `json-merge` that writes the pi
+settings' `packages` array, the two lists must match **string-for-string**
+(order-insensitive set equality, exact strings). This replaces the previous
+comment-and-discipline convention so a mismatch fails offline at lint time before
+it ever reaches a machine. The rule keys on "an `install.<backend>` list and a
+`json-merge` writing that backend's registry array in the same package," so it
+generalizes to a future npm equivalent.
+
 ## Implementation status
 
-- `kempt lint` — shipped (unknown keys, spec validation, structural checks).
+- `kempt lint` — shipped (unknown keys, spec validation, structural checks,
+  install-list ↔ settings-merge `packages` string-for-string invariant).
+- `kempt doctor` — shipped (read-only machine-vs-manifest drift/health check;
+  D1–D5 findings, `[doctor]` config, `-json`, `-strict`).
 - `kempt plan` / `apply` / `init` / `update` — in progress (phases 1b–1c).

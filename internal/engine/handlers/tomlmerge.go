@@ -10,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/schuettc/kempt/internal/engine"
+	"github.com/schuettc/kempt/internal/jsonutil"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 )
@@ -41,7 +42,7 @@ func (tomlMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid TOML)"}, nil
 	}
 
-	desired := expandHome(toAnyTOML(st.Merge), ctx.Home)
+	desired := jsonutil.ExpandHome(toAnyTOML(st.Merge), ctx.Home)
 	if isSubset(desired, current, false) {
 		return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
 	}
@@ -68,7 +69,7 @@ func (tomlMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 		return fmt.Errorf("existing file is not valid TOML: %s", file)
 	}
 
-	merged := merge(expandHome(toAnyTOML(st.Merge), ctx.Home), current, false)
+	merged := merge(jsonutil.ExpandHome(toAnyTOML(st.Merge), ctx.Home), current, false)
 	m, ok := merged.(map[string]any)
 	if !ok {
 		return fmt.Errorf("merge result is not a table: %s", file)

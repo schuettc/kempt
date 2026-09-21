@@ -278,6 +278,48 @@ description = "a"
 	}
 }
 
+func TestValidateInstallSettingsPackagesMismatch(t *testing.T) {
+	src := []byte(`
+spec = 1
+[packages.pi]
+[[packages.pi.install]]
+pi = ["npm:a", "npm:b"]
+[[packages.pi.json-merge]]
+file = "~/.pi/agent/settings.json"
+merge = { packages = ["npm:a"] }
+`)
+	m, f := Parse(src)
+	f = append(f, Validate(m)...)
+	found := false
+	for _, x := range f {
+		if strings.Contains(x.Msg, "install") && strings.Contains(x.Msg, "packages") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("want a string-for-string mismatch finding, got %+v", f)
+	}
+}
+
+func TestValidateInstallSettingsPackagesMatchOrderInsensitive(t *testing.T) {
+	src := []byte(`
+spec = 1
+[packages.pi]
+[[packages.pi.install]]
+pi = ["npm:a", "npm:b"]
+[[packages.pi.json-merge]]
+file = "~/.pi/agent/settings.json"
+merge = { packages = ["npm:b", "npm:a"] }
+`)
+	m, f := Parse(src)
+	f = append(f, Validate(m)...)
+	for _, x := range f {
+		if strings.Contains(x.Msg, "string-for-string") {
+			t.Fatalf("reordered lists are set-equal; no finding expected: %+v", f)
+		}
+	}
+}
+
 func TestValidateReferenceIsClean(t *testing.T) {
 	m := mustParse(t, "testdata/reference.toml")
 	if f := Validate(m); len(f) != 0 {

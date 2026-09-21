@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/schuettc/kempt/internal/engine"
+	"github.com/schuettc/kempt/internal/inventory"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 )
@@ -42,12 +42,6 @@ const (
 	brewFormulaCmd = "brew list --formula -1"
 	brewCaskCmd    = "brew list --cask -1"
 	brewTapCmd     = "brew tap"
-	// npmInventoryCmd lists globally-installed packages as JSON. The
-	// `.dependencies` object maps package NAME (scoped names like "@scope/name"
-	// are keys) to an object carrying `.version`, letting us build name→version.
-	npmInventoryCmd = "npm ls -g --depth=0 --json"
-	// piInventoryCmd lists registered package identifiers, one per line.
-	piInventoryCmd = "pi list"
 )
 
 func (installHandler) Kind() string { return "install" }
@@ -145,7 +139,7 @@ func npmInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 	if _, err := ctx.Runner.LookPath("npm"); err != nil {
 		return engine.Delta{Op: engine.OpBlocked, Detail: "install (npm not found)"}, nil
 	}
-	installed, err := npmInventory(ctx)
+	installed, err := inventory.Npm(ctx)
 	if err != nil {
 		return engine.Delta{}, err
 	}
@@ -162,7 +156,7 @@ func npmApply(ctx *machine.Context, desired []string) error {
 	if _, err := ctx.Runner.LookPath("npm"); err != nil {
 		return nil // absent → blocked was already signalled in Inspect Detail
 	}
-	installed, err := npmInventory(ctx)
+	installed, err := inventory.Npm(ctx)
 	if err != nil {
 		return err
 	}
@@ -175,34 +169,8 @@ func npmApply(ctx *machine.Context, desired []string) error {
 	if _, err := ctx.Runner.Run("npm", append([]string{"install", "-g"}, need...)...); err != nil {
 		return err
 	}
-	delete(ctx.Cache, npmInventoryCmd)
+	delete(ctx.Cache, inventory.NpmCmd)
 	return nil
-}
-
-// npmInventory returns globally-installed npm packages as name→version,
-// memoized via ctx.Cache. It parses `npm ls -g --depth=0 --json`, reading the
-// top-level `.dependencies` object (keys are package names, preserving
-// @scope/name). A parse failure is treated as no packages installed.
-func npmInventory(ctx *machine.Context) (map[string]string, error) {
-	out, err := cachedRun(ctx, npmInventoryCmd)
-	if err != nil {
-		return nil, err
-	}
-	inv := map[string]string{}
-	var parsed struct {
-		Dependencies map[string]struct {
-			Version string `json:"version"`
-		} `json:"dependencies"`
-	}
-	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
-		return nil, fmt.Errorf("npm inventory: unparseable output: %w", err)
-	}
-	for name, dep := range parsed.Dependencies {
-		if name != "" {
-			inv[name] = dep.Version
-		}
-	}
-	return inv, nil
 }
 
 // piInspect probes registered pi packages (read-only) and reports the delta.
@@ -210,7 +178,7 @@ func piInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 	if _, err := ctx.Runner.LookPath("pi"); err != nil {
 		return engine.Delta{Op: engine.OpBlocked, Detail: "install (pi not found)"}, nil
 	}
-	present, err := piInventory(ctx)
+	present, err := inventory.Pi(ctx)
 	if err != nil {
 		return engine.Delta{}, err
 	}
@@ -227,7 +195,7 @@ func piApply(ctx *machine.Context, desired []string) error {
 	if _, err := ctx.Runner.LookPath("pi"); err != nil {
 		return nil // absent → blocked was already signalled in Inspect Detail
 	}
-	present, err := piInventory(ctx)
+	present, err := inventory.Pi(ctx)
 	if err != nil {
 		return err
 	}
@@ -242,30 +210,8 @@ func piApply(ctx *machine.Context, desired []string) error {
 			return err
 		}
 	}
-	delete(ctx.Cache, piInventoryCmd)
+	delete(ctx.Cache, inventory.PiCmd)
 	return nil
-}
-
-// piInventory returns registered pi packages as name→version, memoized via
-// ctx.Cache. For `npm:<name>@<version>` lines the key is `npm:<name>` (prefix
-// and any @scope preserved) and the value is `<version>`; local-path and other
-// lines are kept verbatim as the key with an empty (unversioned) value.
-func piInventory(ctx *machine.Context) (map[string]string, error) {
-	out, err := cachedRun(ctx, piInventoryCmd)
-	if err != nil {
-		return nil, err
-	}
-	inv := map[string]string{}
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		// Skip blank lines and section-header lines (e.g. "User packages:").
-		if line == "" || strings.HasSuffix(line, ":") {
-			continue
-		}
-		name, ver := splitNameVersion(line)
-		inv[name] = ver
-	}
-	return inv, nil
 }
 
 // splitNameVersion splits an entry into (name, version) at a trailing @version,

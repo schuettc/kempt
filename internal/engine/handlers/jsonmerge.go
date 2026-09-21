@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/schuettc/kempt/internal/engine"
+	"github.com/schuettc/kempt/internal/jsonutil"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 )
@@ -41,7 +42,7 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid JSON)"}, nil
 	}
 
-	desired := expandHome(toAny(st.Merge), ctx.Home)
+	desired := jsonutil.ExpandHome(jsonutil.ToAny(st.Merge), ctx.Home)
 	replace := st.Arrays == "replace"
 	if isSubset(desired, current, replace) {
 		return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
@@ -70,7 +71,7 @@ func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 		return fmt.Errorf("existing file is not valid JSON: %s", file)
 	}
 
-	merged := merge(expandHome(toAny(st.Merge), ctx.Home), current, st.Arrays == "replace")
+	merged := merge(jsonutil.ExpandHome(jsonutil.ToAny(st.Merge), ctx.Home), current, st.Arrays == "replace")
 	out, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
 		return err
@@ -182,44 +183,4 @@ func containsElem(list []any, elem any) bool {
 		}
 	}
 	return false
-}
-
-// expandHome walks a decoded value tree and replaces the literal token
-// "${HOME}" in every string leaf with home. json-merge and toml-merge apply it
-// to desired values so a manifest can write an absolute home path into files
-// that do not themselves expand ~ or environment variables (e.g. codex
-// hooks.json, whose command strings need absolute paths). Bare ~ is left
-// untouched — consumers that expand it at runtime (claude, tmux) keep doing so.
-func expandHome(v any, home string) any {
-	switch t := v.(type) {
-	case map[string]any:
-		for k, e := range t {
-			t[k] = expandHome(e, home)
-		}
-		return t
-	case []any:
-		for i, e := range t {
-			t[i] = expandHome(e, home)
-		}
-		return t
-	case string:
-		return strings.ReplaceAll(t, "${HOME}", home)
-	default:
-		return v
-	}
-}
-
-// toAny round-trips a map through JSON so its values (which may come from TOML)
-// share the same dynamic types as unmarshalled current state, making deep
-// comparison reliable.
-func toAny(m map[string]any) any {
-	b, err := json.Marshal(m)
-	if err != nil {
-		return m
-	}
-	var v any
-	if err := json.Unmarshal(b, &v); err != nil {
-		return m
-	}
-	return v
 }

@@ -124,6 +124,29 @@ func TestParseUnknownKeyIsFinding(t *testing.T) {
 	}
 }
 
+func TestParseDoctorConfig(t *testing.T) {
+	src := []byte(`
+[kempt]
+spec = 1
+[doctor]
+checkNpmOrphans = true
+ignore = ["npm:pi-quiet", "glob:pi-*"]
+`)
+	m, findings := Parse(src)
+	if len(findings) != 0 {
+		t.Fatalf("unexpected findings (a [doctor] key was flagged unknown?): %v", findings)
+	}
+	if m.Doctor == nil {
+		t.Fatal("m.Doctor is nil, want decoded [doctor] block")
+	}
+	if !m.Doctor.CheckNpmOrphans {
+		t.Error("CheckNpmOrphans = false, want true")
+	}
+	if len(m.Doctor.Ignore) != 2 || m.Doctor.Ignore[0] != "npm:pi-quiet" || m.Doctor.Ignore[1] != "glob:pi-*" {
+		t.Fatalf("Ignore = %v, want [npm:pi-quiet glob:pi-*]", m.Doctor.Ignore)
+	}
+}
+
 func TestParseNotes(t *testing.T) {
 	src := []byte(`
 [kempt]
