@@ -3,6 +3,7 @@ package handlers
 import (
 	"strings"
 
+	"github.com/schuettc/kempt/internal/inventory"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 )
@@ -83,9 +84,9 @@ func ExtInstalledVersion(ctx *machine.Context, e ExtEntry) (version string, know
 // extInventory returns the installed-version map for a backend.
 func extInventory(ctx *machine.Context, backend string) (map[string]string, error) {
 	if backend == "pi" {
-		return piInventory(ctx)
+		return inventory.Pi(ctx)
 	}
-	return npmInventory(ctx)
+	return inventory.Npm(ctx)
 }
 
 // RollExtension reinstalls a rolling entry at the newest version: `pi install
@@ -96,12 +97,12 @@ func RollExtension(ctx *machine.Context, e ExtEntry) error {
 		if _, err := ctx.Runner.Run("pi", "install", e.Entry); err != nil {
 			return err
 		}
-		delete(ctx.Cache, piInventoryCmd)
+		delete(ctx.Cache, inventory.PiCmd)
 		return nil
 	}
 	if _, err := ctx.Runner.Run("npm", "install", "-g", e.Pkg+"@latest"); err != nil {
 		return err
 	}
-	delete(ctx.Cache, npmInventoryCmd)
+	delete(ctx.Cache, inventory.NpmCmd)
 	return nil
 }

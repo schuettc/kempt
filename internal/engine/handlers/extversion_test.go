@@ -3,6 +3,7 @@ package handlers
 import (
 	"testing"
 
+	"github.com/schuettc/kempt/internal/inventory"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 	"github.com/schuettc/kempt/internal/run"
@@ -77,11 +78,11 @@ func TestRollExtensionRunsPiInstallAndInvalidatesCache(t *testing.T) {
 	fr := &run.FakeRunner{Responses: map[string]run.Response{
 		"pi install npm:pi-creel": {Stdout: ""},
 	}}
-	ctx := &machine.Context{Runner: fr, Cache: map[string]string{piInventoryCmd: "stale"}}
+	ctx := &machine.Context{Runner: fr, Cache: map[string]string{inventory.PiCmd: "stale"}}
 	if err := RollExtension(ctx, ExtEntry{Backend: "pi", Entry: "npm:pi-creel", Pkg: "pi-creel"}); err != nil {
 		t.Fatalf("RollExtension: %v", err)
 	}
-	if _, cached := ctx.Cache[piInventoryCmd]; cached {
+	if _, cached := ctx.Cache[inventory.PiCmd]; cached {
 		t.Error("pi inventory cache not invalidated")
 	}
 	if len(fr.Calls) != 1 || fr.Calls[0] != "pi install npm:pi-creel" {
@@ -93,11 +94,11 @@ func TestRollExtensionNpmInstallsLatestAndInvalidatesCache(t *testing.T) {
 	fr := &run.FakeRunner{Responses: map[string]run.Response{
 		"npm install -g typescript@latest": {Stdout: ""},
 	}}
-	ctx := &machine.Context{Runner: fr, Cache: map[string]string{npmInventoryCmd: "stale"}}
+	ctx := &machine.Context{Runner: fr, Cache: map[string]string{inventory.NpmCmd: "stale"}}
 	if err := RollExtension(ctx, ExtEntry{Backend: "npm", Entry: "typescript", Pkg: "typescript"}); err != nil {
 		t.Fatalf("RollExtension: %v", err)
 	}
-	if _, cached := ctx.Cache[npmInventoryCmd]; cached {
+	if _, cached := ctx.Cache[inventory.NpmCmd]; cached {
 		t.Error("npm inventory cache not invalidated")
 	}
 	if len(fr.Calls) != 1 || fr.Calls[0] != "npm install -g typescript@latest" {
@@ -107,7 +108,7 @@ func TestRollExtensionNpmInstallsLatestAndInvalidatesCache(t *testing.T) {
 
 func TestExtInstalledVersionFromNpmInventory(t *testing.T) {
 	ctx := extCtx(map[string]run.Response{
-		npmInventoryCmd: {Stdout: `{"dependencies":{"typescript":{"version":"5.4.0"}}}`},
+		inventory.NpmCmd: {Stdout: `{"dependencies":{"typescript":{"version":"5.4.0"}}}`},
 	})
 	v, known := ExtInstalledVersion(ctx, ExtEntry{Backend: "npm", Entry: "typescript", Pkg: "typescript"})
 	if !known || v != "5.4.0" {
