@@ -61,6 +61,12 @@ repeating `-manifest`/`-profile`:
   behind to latest. Prompts unless `-yes`. This, `outdated`, and the `update`
   roll step are the only paths that reach the network for versions; `plan`/`apply`
   never do.
+- **`kempt doctor`** — diagnose machine-vs-manifest drift (read-only). Reports
+  drift the `plan`/`verify` commands miss: undeclared live array entries,
+  duplicate package identities, orphaned installs, broken/foreign managed
+  symlinks, and a `plan`/`verify` rollup. Exits non-zero when findings reach the
+  failing threshold (`error` by default; `warn` under `-strict`). `-json` emits
+  machine-readable findings.
 - **`kempt adopt <pkg>`** / **`kempt drop <pkg>`** — add or remove a package
   (and its needs) in the saved selection.
 - **`kempt config auto-apply-files [true|false]`** — get or set whether refresh
