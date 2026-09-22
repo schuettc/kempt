@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"flag"
 	"io"
 
 	"github.com/schuettc/kempt/internal/version"
@@ -23,6 +24,17 @@ var (
 	YesFlag    = tools.YesFlag
 	SplitArgs  = tools.SplitArgs
 )
+
+// verboseFlag registers -verbose and its -v shorthand on fs and returns the
+// bound *bool. Quiet is the default: engine.Render then prints only
+// changed/skipped/blocked steps and omits fully-converged packages; -v restores
+// the full per-step ✓ listing. Registered per command (plan/apply/update/init)
+// so each carries the same flag with the same help.
+func verboseFlag(fs *flag.FlagSet) *bool {
+	v := fs.Bool("verbose", false, "show every step, including unchanged (✓) ones")
+	fs.BoolVar(v, "v", false, "shorthand for -verbose")
+	return v
+}
 
 // commands holds the per-command registrations from the init() files. tools
 // auto-registers version/help/update; those live on the App, not here.

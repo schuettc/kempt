@@ -24,6 +24,7 @@ var selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error)
 
 func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	fset := flag.NewFlagSet("update", flag.ContinueOnError)
+	verbose := verboseFlag(fset)
 	if err := ParseFlags(fset, args, out); err != nil {
 		return err
 	}
@@ -102,7 +103,7 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	engine.Render(plan, out)
+	engine.Render(plan, out, *verbose)
 
 	applied, failed := executeAndVerify(ctx, plan, out)
 	blocked := countBlocked(plan)

@@ -33,6 +33,7 @@ type applyFlags struct {
 	profile  *string
 	packages *string
 	yes      *bool
+	verbose  *bool
 }
 
 // newApplyFlags constructs apply's FlagSet and the values struct it populates
@@ -45,6 +46,7 @@ func newApplyFlags() (*flag.FlagSet, *applyFlags) {
 		profile:  fs.String("profile", "", "profile to select"),
 		packages: fs.String("packages", "", "comma-separated package names"),
 		yes:      YesFlag(fs, "skip the confirmation prompt"),
+		verbose:  verboseFlag(fs),
 	}
 	return fs, v
 }
@@ -114,7 +116,7 @@ func runApply(args []string, out, errw io.Writer) error {
 	}
 
 	// Show the same plan `kempt plan` would.
-	engine.Render(plan, out)
+	engine.Render(plan, out, *v.verbose)
 
 	changes := countChanges(plan)
 	if changes == 0 {
