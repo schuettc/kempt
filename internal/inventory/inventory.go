@@ -7,6 +7,8 @@ package inventory
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/schuettc/kempt/internal/machine"
@@ -52,9 +54,12 @@ func Npm(ctx *machine.Context) (map[string]string, error) {
 
 // Pi returns registered pi packages as name→version, memoized via ctx.Cache.
 // For `npm:<name>@<version>` lines the key is `npm:<name>` (prefix and any
-// @scope preserved) and the value is `<version>`; local-path and other lines
-// are kept verbatim as the key with an empty (unversioned) value. Section
-// headers (e.g. "User packages:") and blank lines are skipped.
+// @scope preserved) and the value is `<version>`. A rolling `npm:<name>` line
+// carries no version in `pi list` (only pinned specs do), so its version is
+// resolved from the installed package's package.json at the resolved-path line
+// pi prints beneath it — otherwise outdated/upgrade can never see a rolling
+// extension is behind. Local-path and other (e.g. git:) lines are kept verbatim
+// as the key with an empty value. Section headers and blank lines are skipped.
 func Pi(ctx *machine.Context) (map[string]string, error) {
 	out, err := cachedRun(ctx, PiCmd)
 	if err != nil {
@@ -67,6 +72,7 @@ func Pi(ctx *machine.Context) (map[string]string, error) {
 	// line indented MORE than that is a resolved-path continuation and is
 	// skipped. Measure indentation on the raw line, before trimming.
 	entryIndent := -1
+	var lastName, lastVer string
 	for _, raw := range strings.Split(out, "\n") {
 		line := strings.TrimSpace(raw)
 		// Skip blank lines and section-header lines (e.g. "User packages:").
@@ -78,13 +84,39 @@ func Pi(ctx *machine.Context) (map[string]string, error) {
 			entryIndent = indent
 		}
 		if indent > entryIndent {
-			// Deeper-indented resolved-path continuation line.
+			// Deeper-indented resolved-path continuation line. For a rolling
+			// npm: entry (no version in its spec), it names the installed
+			// package directory; read the version from its package.json.
+			if lastVer == "" && strings.HasPrefix(lastName, "npm:") {
+				if v := packageJSONVersion(line); v != "" {
+					inv[lastName] = v
+				}
+			}
 			continue
 		}
 		name, ver := splitNameVersion(line)
 		inv[name] = ver
+		lastName, lastVer = name, ver
 	}
 	return inv, nil
+}
+
+// packageJSONVersion reads the `version` field of dir/package.json, returning
+// "" if the file is missing or unparseable. dir is a resolved install path from
+// `pi list`. Best-effort: an unreadable package.json leaves the entry
+// unversioned, exactly as before this resolution existed.
+func packageJSONVersion(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return ""
+	}
+	var pj struct {
+		Version string `json:"version"`
+	}
+	if json.Unmarshal(b, &pj) != nil {
+		return ""
+	}
+	return pj.Version
 }
 
 // splitNameVersion splits an entry into (name, version) at a trailing @version,
