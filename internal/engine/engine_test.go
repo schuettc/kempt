@@ -150,7 +150,7 @@ func TestRenderNotesFooter(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	engine.Render(plan, &buf)
+	engine.Render(plan, &buf, true)
 	out := buf.String()
 	if !strings.Contains(out, "manual follow-ups:") {
 		t.Fatalf("render output missing 'manual follow-ups:'\n%s", out)
@@ -170,7 +170,7 @@ func TestRenderNotesAbsent(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	engine.Render(plan, &buf)
+	engine.Render(plan, &buf, true)
 	out := buf.String()
 	if strings.Contains(out, "manual follow-ups:") {
 		t.Fatalf("render output should NOT contain 'manual follow-ups:' when no notes\n%s", out)
@@ -185,7 +185,7 @@ func TestRenderNotesSkippedPackage(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	engine.Render(plan, &buf)
+	engine.Render(plan, &buf, true)
 	out := buf.String()
 	if !strings.Contains(out, "manual follow-ups:") {
 		t.Fatalf("render output missing 'manual follow-ups:' for skipped package with notes\n%s", out)
@@ -200,7 +200,7 @@ func TestRenderGolden(t *testing.T) {
 	plan := buildPlan(t, ctx)
 
 	var buf bytes.Buffer
-	engine.Render(plan, &buf)
+	engine.Render(plan, &buf, true)
 
 	want := fmt.Sprintf(`package a
   + symlink %s -> %s (create)
@@ -214,5 +214,51 @@ software changes: 0, file changes: 1
 
 	if buf.String() != want {
 		t.Fatalf("render mismatch\n--- got ---\n%s\n--- want ---\n%s", buf.String(), want)
+	}
+}
+
+// TestRenderQuietOmitsOkStepsAndNotes: the default (quiet) render prints only
+// changed/skipped/blocked steps, drops fully-converged packages entirely, and
+// omits the repeat-every-run manual follow-ups — while the footer counts stay
+// identical to verbose.
+func TestRenderQuietOmitsOkStepsAndNotes(t *testing.T) {
+	plan := &engine.Plan{
+		Packages: []engine.PackagePlan{
+			{
+				Name:  "converged",
+				Notes: []string{"run codex login"},
+				Steps: []engine.StepResult{
+					{Step: manifest.SymlinkStep{From: "src/x", To: "x"}, Delta: engine.Delta{Op: engine.OpNoop, Detail: "symlink x"}},
+				},
+			},
+			{
+				Name: "changed",
+				Steps: []engine.StepResult{
+					{Step: manifest.SymlinkStep{From: "src/y", To: "y"}, Delta: engine.Delta{Op: engine.OpChange, Detail: "symlink y (create)"}},
+				},
+			},
+		},
+	}
+	var quiet, verbose bytes.Buffer
+	engine.Render(plan, &quiet, false)
+	engine.Render(plan, &verbose, true)
+	q := quiet.String()
+
+	if strings.Contains(q, "converged") {
+		t.Errorf("quiet render must omit a fully-converged package's header:\n%s", q)
+	}
+	if strings.Contains(q, "manual follow-ups:") {
+		t.Errorf("quiet render must omit manual follow-ups:\n%s", q)
+	}
+	if !strings.Contains(q, "package changed") || !strings.Contains(q, "+ symlink y (create)") {
+		t.Errorf("quiet render must still show the changed package + its change line:\n%s", q)
+	}
+	if !strings.Contains(q, "1 changes, 1 ok, 0 skipped, 0 blocked") {
+		t.Errorf("quiet render must keep the full footer counts (ok included):\n%s", q)
+	}
+	// Verbose is the superset: the converged package, its ✓ step, and the notes.
+	v := verbose.String()
+	if !strings.Contains(v, "package converged") || !strings.Contains(v, "✓ symlink x") || !strings.Contains(v, "manual follow-ups:") {
+		t.Errorf("verbose render must keep converged package, its ✓ step, and follow-ups:\n%s", v)
 	}
 }

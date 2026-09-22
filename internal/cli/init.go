@@ -41,6 +41,7 @@ type initFlags struct {
 	profile  *string
 	yes      *bool
 	manifest *string
+	verbose  *bool
 }
 
 // newInitFlags builds the init FlagSet and its bound flag values.
@@ -52,6 +53,7 @@ func newInitFlags() (*flag.FlagSet, *initFlags) {
 		manifest: fs.String("manifest", "", "path to manifest within the repo (test override)"),
 	}
 	v.yes = YesFlag(fs, "skip the confirmation prompt")
+	v.verbose = verboseFlag(fs)
 	return fs, v
 }
 
@@ -181,7 +183,7 @@ func runInit(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	engine.Render(plan, out)
+	engine.Render(plan, out, *v.verbose)
 
 	changes := countChanges(plan)
 	if changes == 0 {

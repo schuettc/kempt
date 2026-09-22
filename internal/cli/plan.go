@@ -39,6 +39,7 @@ type planFlags struct {
 	packages *string
 	os       *string
 	arch     *string
+	verbose  *bool
 }
 
 // newPlanFlags constructs plan's FlagSet and the values struct it populates
@@ -52,6 +53,7 @@ func newPlanFlags() (*flag.FlagSet, *planFlags) {
 		packages: fs.String("packages", "", "comma-separated package names"),
 		os:       fs.String("os", "", "override OS for dry-planning (e.g. linux, darwin)"),
 		arch:     fs.String("arch", "", "override Arch for dry-planning (e.g. amd64, arm64)"),
+		verbose:  verboseFlag(fs),
 	}
 	return fs, v
 }
@@ -76,6 +78,6 @@ func runPlan(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	engine.Render(plan, out)
+	engine.Render(plan, out, *v.verbose)
 	return nil
 }
