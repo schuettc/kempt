@@ -299,6 +299,25 @@ func TestServiceEnvExpansionVerbatim(t *testing.T) {
 	}
 }
 
+func TestServiceRenderStartInterval(t *testing.T) {
+	ctx := svcCtx(t, &run.FakeRunner{}, 501)
+	iv := 1800
+	st := manifest.ServiceStep{
+		Label:         "com.example.every",
+		Program:       []string{"/usr/bin/foo"},
+		KeepAlive:     boolPtr(false),
+		StartInterval: &iv,
+	}
+	got := renderPlist(ctx, st)
+	if !strings.Contains(got, "<key>StartInterval</key>\n\t<integer>1800</integer>\n") {
+		t.Fatalf("StartInterval missing:\n%s", got)
+	}
+	// Keys stay alphabetical: StandardOutPath < StartInterval < ThrottleInterval.
+	if strings.Index(got, "<key>RunAtLoad</key>") > strings.Index(got, "<key>StartInterval</key>") {
+		t.Fatalf("key order:\n%s", got)
+	}
+}
+
 func TestServiceApplyNoopIssuesNoCommands(t *testing.T) {
 	h := serviceHandler(t)
 	fr := &run.FakeRunner{Responses: map[string]run.Response{}}

@@ -108,7 +108,8 @@ type ServiceStep struct {
 	RunAtLoad        *bool             `toml:"run-at-load"`  // default true when nil
 	ProcessType      string            `toml:"process-type"` // e.g. "Interactive"
 	ThrottleInterval *int              `toml:"throttle-interval"`
-	SessionType      string            `toml:"session-type"` // LimitLoadToSessionType, e.g. "Aqua"
+	StartInterval    *int              `toml:"start-interval"` // StartInterval seconds: a periodic job (requires keep-alive = false)
+	SessionType      string            `toml:"session-type"`   // LimitLoadToSessionType, e.g. "Aqua"
 	Only             *Only             `toml:"only"`
 }
 
