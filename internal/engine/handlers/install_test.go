@@ -479,6 +479,30 @@ func TestInstallPiMissing(t *testing.T) {
 	}
 }
 
+// A bad entry (here a local path absent on this machine) must not stop the
+// entries after it: the pinned fix behind it still installs, and the error
+// names the entry that failed.
+func TestInstallPiBadEntryDoesNotBlockRest(t *testing.T) {
+	fake := &run.FakeRunner{Responses: map[string]run.Response{
+		"lookpath pi":                    {Stdout: "/usr/bin/pi"},
+		"pi list":                        {Stdout: ""},
+		"pi install /missing/ext":        {Err: errors.New("Path does not exist")},
+		"pi install npm:artifacts@1.4.1": {},
+	}}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Pi: []string{"/missing/ext", "npm:artifacts@1.4.1"}}
+
+	err := h.Apply(ctx, step)
+	if err == nil || !strings.Contains(err.Error(), "/missing/ext") {
+		t.Fatalf("Apply err = %v; want an error naming /missing/ext", err)
+	}
+	want := []string{"lookpath pi", "pi list", "pi install /missing/ext", "pi install npm:artifacts@1.4.1"}
+	if !reflect.DeepEqual(fake.Calls, want) {
+		t.Fatalf("apply calls = %v; want %v", fake.Calls, want)
+	}
+}
+
 func TestInstallPiNotFound(t *testing.T) {
 	fake := &run.FakeRunner{Responses: map[string]run.Response{}}
 	ctx := installCtx(t, "darwin", fake)
@@ -958,5 +982,25 @@ func TestInstallPiLocalPathUnversioned(t *testing.T) {
 	}
 	if d.Op != engine.OpNoop {
 		t.Fatalf("op = %v; want OpNoop", d.Op)
+	}
+}
+
+// A failing tap must not stop the taps after it.
+func TestInstallBrewBadTapDoesNotBlockRest(t *testing.T) {
+	resp := brewFound("", "", "")
+	resp["brew tap bad/tap"] = run.Response{Err: errors.New("no such repo")}
+	resp["brew tap good/tap"] = run.Response{}
+	fake := &run.FakeRunner{Responses: resp}
+	ctx := installCtx(t, "darwin", fake)
+	h := getInstallHandler(t)
+	step := manifest.InstallStep{Brew: &manifest.BrewSpec{Taps: []string{"bad/tap", "good/tap"}}}
+
+	err := h.Apply(ctx, step)
+	if err == nil || !strings.Contains(err.Error(), "bad/tap") {
+		t.Fatalf("Apply err = %v; want an error naming bad/tap", err)
+	}
+	ran := strings.Join(fake.Calls, "\n")
+	if !strings.Contains(ran, "brew tap good/tap") {
+		t.Fatalf("good/tap not attempted; calls = %v", fake.Calls)
 	}
 }
