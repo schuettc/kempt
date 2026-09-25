@@ -172,6 +172,7 @@
         "run-at-load": { "type": "boolean" },
         "process-type": { "type": "string" },
         "throttle-interval": { "type": "integer" },
+        "start-interval": { "type": "integer", "minimum": 1 },
         "session-type": { "type": "string" },
         "only": { "$ref": "#/$defs/only" }
       }

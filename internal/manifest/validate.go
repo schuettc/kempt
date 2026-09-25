@@ -375,6 +375,19 @@ func validateStepFields(m *Manifest) []Finding {
 					Msg:  `arrays must be "append" or "replace"`,
 				})
 			}
+			if sv, ok := step.(ServiceStep); ok && sv.StartInterval != nil {
+				if sv.KeepAlive == nil || *sv.KeepAlive {
+					findings = append(findings, Finding{
+						Path: fmt.Sprintf("packages.%s.%s[%d]", name, kind, idx),
+						Msg:  "start-interval requires keep-alive = false",
+					})
+				} else if *sv.StartInterval <= 0 {
+					findings = append(findings, Finding{
+						Path: fmt.Sprintf("packages.%s.%s[%d]", name, kind, idx),
+						Msg:  "start-interval must be > 0",
+					})
+				}
+			}
 			kindIdx[kind]++
 		}
 	}

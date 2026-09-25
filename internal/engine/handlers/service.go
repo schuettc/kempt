@@ -126,6 +126,12 @@ func renderPlist(ctx *machine.Context, st manifest.ServiceStep) string {
 		b.WriteString("</string>\n")
 	}
 
+	// StartInterval — a periodic job; validation requires keep-alive = false.
+	if st.StartInterval != nil {
+		b.WriteString("\t<key>StartInterval</key>\n")
+		fmt.Fprintf(&b, "\t<integer>%d</integer>\n", *st.StartInterval)
+	}
+
 	// ThrottleInterval.
 	if st.ThrottleInterval != nil {
 		b.WriteString("\t<key>ThrottleInterval</key>\n")

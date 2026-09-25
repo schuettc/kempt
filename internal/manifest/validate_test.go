@@ -348,3 +348,53 @@ merge = { packages = ["npm:b"] }
 		}
 	}
 }
+
+func TestValidateServiceStartIntervalRequiresKeepAliveFalse(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.service]]
+label = "com.example.every"
+program = ["/usr/bin/foo"]
+start-interval = 1800
+`)
+	if len(f) != 1 || !strings.Contains(f[0].Path, "service[0]") || !strings.Contains(f[0].Msg, "start-interval requires keep-alive = false") {
+		t.Fatalf("want one finding about keep-alive, got %v", f)
+	}
+}
+
+func TestValidateServiceStartIntervalZeroInvalid(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.service]]
+label = "com.example.every"
+program = ["/usr/bin/foo"]
+keep-alive = false
+start-interval = 0
+`)
+	if len(f) != 1 || !strings.Contains(f[0].Msg, "start-interval must be > 0") {
+		t.Fatalf("want one finding about start-interval > 0, got %v", f)
+	}
+}
+
+func TestValidateServiceStartIntervalValid(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.service]]
+label = "com.example.every"
+program = ["/usr/bin/foo"]
+keep-alive = false
+start-interval = 1800
+`)
+	if len(f) != 0 {
+		t.Fatalf("want no findings, got %v", f)
+	}
+}
