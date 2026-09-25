@@ -21,10 +21,3 @@ func Commit() string {
 func Date() string {
 	return date
 }
-
-func String() string {
-	if commit != "" {
-		return version + " (" + commit + ")"
-	}
-	return version
-}

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	tools "github.com/schuettc/tools-common"
 )
 
 // State holds the user's machine selection.
@@ -58,7 +60,7 @@ func (s *Store) Load() (*State, bool, error) {
 	return &st, true, nil
 }
 
-// Save writes state.json atomically (marshal → .tmp → rename), creating Dir as needed.
+// Save writes state.json atomically (tools.WriteFileAtomic), creating Dir as needed.
 func (s *Store) Save(st *State) error {
 	data, err := json.Marshal(st)
 	if err != nil {
@@ -101,14 +103,8 @@ func readFile(path string) ([]byte, bool, error) {
 	return data, true, nil
 }
 
-// atomicWrite marshals data to dir/<name>.tmp then renames to dir/<name>.
+// atomicWrite writes data to dir/name durably via tools.WriteFileAtomic
+// (unique temp, fsync, rename), creating dir as needed.
 func atomicWrite(dir, name string, data []byte) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	tmp := filepath.Join(dir, name+".tmp")
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, filepath.Join(dir, name))
+	return tools.WriteFileAtomic(filepath.Join(dir, name), data, 0o644)
 }
