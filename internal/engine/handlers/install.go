@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -204,14 +205,17 @@ func piApply(ctx *machine.Context, desired []string) error {
 		return nil
 	}
 	// Install each entry verbatim; a pinned entry (e.g. npm:name@ver) carries
-	// its version so pi converges to exactly that version.
+	// its version so pi converges to exactly that version. A failing entry must
+	// not block the ones after it, so every entry is tried and the failures are
+	// reported together.
+	var errs []error
 	for _, p := range need {
 		if _, err := ctx.Runner.Run("pi", "install", p); err != nil {
-			return err
+			errs = append(errs, fmt.Errorf("%s: %w", p, err))
 		}
 	}
 	delete(ctx.Cache, inventory.PiCmd)
-	return nil
+	return errors.Join(errs...)
 }
 
 // splitNameVersion splits an entry into (name, version) at a trailing @version,
@@ -335,10 +339,16 @@ func brewApply(ctx *machine.Context, spec *manifest.BrewSpec) error {
 	missC := missing(spec.Casks, installedC)
 	missT := missing(spec.Taps, installedT)
 
+	// A failing tap must not block the taps after it.
+	var tapErrs []error
 	for _, t := range missT {
 		if _, err := ctx.Runner.Run("brew", "tap", t); err != nil {
-			return err
+			tapErrs = append(tapErrs, fmt.Errorf("%s: %w", t, err))
 		}
+	}
+	if err := errors.Join(tapErrs...); err != nil {
+		delete(ctx.Cache, brewTapCmd)
+		return err
 	}
 	if len(missF) > 0 {
 		if _, err := ctx.Runner.Run("brew", append([]string{"install"}, missF...)...); err != nil {
