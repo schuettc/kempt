@@ -8,9 +8,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
+
+	tools "github.com/schuettc/tools-common"
 )
 
 // This file holds the verified-atomic install primitive shared by the
@@ -77,29 +78,11 @@ func extractBinary(assetName string, data []byte, bin string) ([]byte, error) {
 	return nil, fmt.Errorf("%s: %s not found in %s", bin, bin, assetName)
 }
 
-// stageAndRename writes data to a temp path in destDir (0755) then atomically
-// renames it onto destDir/bin. Parent dirs are created; the staged file is
-// removed on any error.
+// stageAndRename lands data on destDir/bin (0755) atomically via
+// tools.WriteFileAtomic: parent dirs are created, the temp is unique and
+// fsynced, and a failed write never leaves a partial binary at destDir/bin.
 func stageAndRename(destDir, bin string, data []byte) error {
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return err
-	}
-	final := filepath.Join(destDir, bin)
-	staged := filepath.Join(destDir, fmt.Sprintf(".%s.new.%d", bin, os.Getpid()))
-	if err := os.WriteFile(staged, data, 0o755); err != nil {
-		os.Remove(staged)
-		return err
-	}
-	// WriteFile respects umask; force mode explicitly.
-	if err := os.Chmod(staged, 0o755); err != nil {
-		os.Remove(staged)
-		return err
-	}
-	if err := os.Rename(staged, final); err != nil {
-		os.Remove(staged)
-		return err
-	}
-	return nil
+	return tools.WriteFileAtomic(filepath.Join(destDir, bin), data, 0o755)
 }
 
 // verifyExtractInstall verifies assetBytes against the checksum for assetName
