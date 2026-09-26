@@ -92,3 +92,35 @@ spec = 1
 		t.Errorf("upgrade output missing confirmation:\n%s", out.String())
 	}
 }
+
+func TestScanExtensionsReportsGitBehind(t *testing.T) {
+	dir := writeTempManifest(t, `
+[kempt]
+spec = 1
+[packages.pi]
+  [[packages.pi.install]]
+  pi = ["git:github.com/obra/superpowers"]
+`)
+	restore, _ := stubContextRuns(t, dir, nil, map[string]string{
+		"pi list":                     "  git:github.com/obra/superpowers\n    /h/sp\n",
+		"git -C /h/sp rev-parse HEAD": "5bf4e78aaaaaaaaaaaaa\n",
+		"git ls-remote https://github.com/obra/superpowers HEAD": "9c01d2bbbbbbbbbbbbbb\tHEAD\n",
+	}, nil)
+	defer restore()
+
+	_, selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := scanExtensions(ctx, selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 rolling status, got %d: %+v", len(got), got)
+	}
+	s := got[0]
+	if s.Kind != "git" || s.Tool != "github.com/obra/superpowers" || s.Installed != "5bf4e78aaaaa" || s.Target != "9c01d2bbbbbb" || !s.Behind {
+		t.Errorf("status = %+v", s)
+	}
+}

@@ -119,6 +119,38 @@ func packageJSONVersion(dir string) string {
 	return pj.Version
 }
 
+// PiPaths returns each registered pi package's resolved install path, keyed
+// like Pi (spec name with any @version stripped). It reads the same memoized
+// `pi list` output: the path is the deeper-indented line beneath each spec
+// line. A package with no path line is absent from the map.
+func PiPaths(ctx *machine.Context) (map[string]string, error) {
+	out, err := cachedRun(ctx, PiCmd)
+	if err != nil {
+		return nil, err
+	}
+	paths := map[string]string{}
+	entryIndent := -1
+	lastName := ""
+	for _, raw := range strings.Split(out, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasSuffix(line, ":") {
+			continue
+		}
+		indent := len(raw) - len(strings.TrimLeft(raw, " \t"))
+		if entryIndent == -1 {
+			entryIndent = indent
+		}
+		if indent > entryIndent {
+			if lastName != "" {
+				paths[lastName] = line
+			}
+			continue
+		}
+		lastName, _ = splitNameVersion(line)
+	}
+	return paths, nil
+}
+
 // splitNameVersion splits an entry into (name, version) at a trailing @version,
 // preserving an `npm:` prefix and never treating a leading @scope as a version
 // separator.
