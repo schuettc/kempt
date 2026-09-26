@@ -13,6 +13,7 @@ import (
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/gitrepo"
 	"github.com/schuettc/kempt/internal/manifest"
+	"github.com/schuettc/kempt/internal/version"
 	tools "github.com/schuettc/tools-common"
 )
 
@@ -57,6 +58,8 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 
 	// 2. Self-update the binary via the /dl download contract. A non-writable
 	// exe dir is a soft failure: we still converge config. Other errors abort.
+	// The binary's standing is always reported, so a current binary is
+	// distinguishable from a skipped check.
 	updated, newVer, uerr := selfUpdate(app, out, errw)
 	if uerr != nil {
 		if isPermissionErr(uerr) {
@@ -65,7 +68,9 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 			return uerr
 		}
 	} else if updated {
-		fmt.Fprintf(out, "kempt updated to %s\n", newVer)
+		fmt.Fprintf(out, "kempt updated %s -> %s\n", version.Number(), newVer)
+	} else {
+		fmt.Fprintf(out, "kempt %s (current)\n", newVer)
 	}
 
 	// 3. Load and select from the freshly-pulled repo so the roll step and the
