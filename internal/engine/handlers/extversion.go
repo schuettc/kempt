@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/schuettc/kempt/internal/inventory"
@@ -9,9 +10,12 @@ import (
 )
 
 // ExtEntry is one rolling npm/pi extension entry from an install step. Backend
-// is "pi" or "npm"; Entry is the manifest string as pi/npm consume it (for
-// example "npm:pi-creel" for pi, "typescript" for npm); Pkg is the npm registry
-// package name used to resolve latest ("pi-creel", "typescript", "@scope/x").
+// is "pi" (npm-sourced pi package), "git" (git-sourced pi package) or "npm";
+// Entry is the manifest string as pi/npm consume it (for example
+// "npm:pi-creel" for pi, "git:github.com/obra/superpowers" for git,
+// "typescript" for npm); Pkg is the npm registry package name used to resolve
+// latest ("pi-creel", "typescript", "@scope/x"), or for git the repo
+// ("github.com/obra/superpowers").
 type ExtEntry struct {
 	Backend string
 	Entry   string
@@ -19,7 +23,8 @@ type ExtEntry struct {
 }
 
 // RollingExtensions returns the unversioned (rolling) npm and pi entries in
-// step. Pinned entries (name@version) are excluded: they converge offline via
+// step. An unversioned git: pi entry is rolling too: it tracks its repo's
+// default branch. Pinned entries (name@version) are excluded: they converge offline via
 // the install handler and are never rolled to latest.
 func RollingExtensions(step manifest.InstallStep) []ExtEntry {
 	var out []ExtEntry
@@ -28,8 +33,12 @@ func RollingExtensions(step manifest.InstallStep) []ExtEntry {
 		if ver != "" {
 			continue
 		}
-		// pi entries can be local paths or non-npm sources; only npm-registry
-		// sources (npm:<pkg>) are rolling.
+		// pi entries can be local paths or other sources; only npm-registry
+		// (npm:<pkg>) and git (git:<repo>) sources are rolling.
+		if strings.HasPrefix(name, "git:") {
+			out = append(out, ExtEntry{Backend: "git", Entry: e, Pkg: strings.TrimPrefix(name, "git:")})
+			continue
+		}
 		if !strings.HasPrefix(name, "npm:") {
 			continue
 		}
@@ -57,22 +66,89 @@ func registryPkg(name string) string { return strings.TrimPrefix(name, "npm:") }
 // npmViewCmd is the memoized inventory key for `npm view <pkg> version`.
 func npmViewCmd(pkg string) string { return "npm view " + pkg + " version" }
 
-// ExtLatest resolves the newest published version of an extension via
-// `npm view <pkg> version`. Network; memoized per run via ctx.Cache. Callers
-// must be an explicit outdated/upgrade/update-roll path, never Inspect.
-func ExtLatest(ctx *machine.Context, pkg string) (string, error) {
-	out, err := cachedRun(ctx, npmViewCmd(pkg))
+// gitShaLen is how many characters of a commit sha git entries report as
+// their version: enough to be unique, short enough to read in outdated.
+const gitShaLen = 12
+
+// shortSha returns the first field of out truncated to gitShaLen, or "" when
+// out is empty.
+func shortSha(out string) string {
+	f := strings.Fields(out)
+	if len(f) == 0 {
+		return ""
+	}
+	if len(f[0]) > gitShaLen {
+		return f[0][:gitShaLen]
+	}
+	return f[0]
+}
+
+// gitRemoteURL turns a pi git source (without its git: prefix) into a URL git
+// can query: a bare host/owner/repo gets https://, full URLs and scp-style
+// git@host:repo are used as-is.
+func gitRemoteURL(repo string) string {
+	if strings.Contains(repo, "://") || strings.HasPrefix(repo, "git@") {
+		return repo
+	}
+	return "https://" + repo
+}
+
+// ExtLatest resolves the newest published version of an extension: `npm view
+// <pkg> version` for npm-sourced entries, or the remote default-branch head
+// (`git ls-remote <url> HEAD`, short sha) for git entries. Network; memoized
+// per run via ctx.Cache. Callers must be an explicit outdated/upgrade/
+// update-roll path, never Inspect.
+func ExtLatest(ctx *machine.Context, e ExtEntry) (string, error) {
+	if e.Backend == "git" {
+		out, err := cachedRun(ctx, "git ls-remote "+gitRemoteURL(e.Pkg)+" HEAD")
+		if err != nil {
+			return "", err
+		}
+		sha := shortSha(out)
+		if sha == "" {
+			return "", fmt.Errorf("git ls-remote %s: no HEAD", e.Pkg)
+		}
+		return sha, nil
+	}
+	out, err := cachedRun(ctx, npmViewCmd(e.Pkg))
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
 }
 
+// ExtBehind reports whether installed is behind target. npm-sourced entries
+// compare as semver; git entries are behind whenever the shas differ, since
+// the target is the default-branch head. An unknown installed version is
+// never behind.
+func ExtBehind(e ExtEntry, target, installed string) bool {
+	if installed == "" {
+		return false
+	}
+	if e.Backend == "git" {
+		return target != "" && target != installed
+	}
+	return SemverNewer(target, installed)
+}
+
 // ExtInstalledVersion returns the installed version of a rolling entry and
 // whether it was found and parseable. pi entries are read from `pi list` (keyed
-// npm:<name>); npm entries from the global npm inventory.
+// npm:<name>); git entries are the short sha of the clone's HEAD at the path
+// `pi list` resolves; npm entries from the global npm inventory.
 func ExtInstalledVersion(ctx *machine.Context, e ExtEntry) (version string, known bool) {
 	name, _ := splitNameVersion(e.Entry)
+	if e.Backend == "git" {
+		paths, err := inventory.PiPaths(ctx)
+		if err != nil || paths[name] == "" {
+			return "", false
+		}
+		out, err := ctx.Runner.Run("git", "-C", paths[name], "rev-parse", "HEAD")
+		if err != nil {
+			return "", false
+		}
+		sha := shortSha(out)
+		return sha, sha != ""
+	}
 	inv, err := extInventory(ctx, e.Backend)
 	if err != nil {
 		return "", false
@@ -90,10 +166,12 @@ func extInventory(ctx *machine.Context, backend string) (map[string]string, erro
 }
 
 // RollExtension reinstalls a rolling entry at the newest version: `pi install
-// npm:<name>` (pi resolves latest) or `npm install -g <pkg>@latest`. It then
-// invalidates the backend's inventory cache key so a later read re-probes.
+// <entry>` for pi entries (pi resolves latest for npm:, and for an existing
+// git: clone fetches the default branch and resets to it) or `npm install -g
+// <pkg>@latest`. It then invalidates the backend's inventory cache key so a
+// later read re-probes.
 func RollExtension(ctx *machine.Context, e ExtEntry) error {
-	if e.Backend == "pi" {
+	if e.Backend == "pi" || e.Backend == "git" {
 		if _, err := ctx.Runner.Run("pi", "install", e.Entry); err != nil {
 			return err
 		}

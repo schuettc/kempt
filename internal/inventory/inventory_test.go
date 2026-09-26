@@ -92,3 +92,24 @@ func TestPiInventorySkipsHeaders(t *testing.T) {
 		t.Fatalf("typescript version = %q", inv["npm:typescript"])
 	}
 }
+
+func TestPiPathsMapsSpecToResolvedPath(t *testing.T) {
+	stdout := "User packages:\n" +
+		"  npm:pi-quiet@0.2.1\n" +
+		"    /Users/you/.pi/agent/npm/node_modules/pi-quiet\n" +
+		"  git:github.com/obra/superpowers\n" +
+		"    /Users/you/.pi/agent/git/github.com/obra/superpowers\n"
+	c := ctxWith(&run.FakeRunner{Responses: map[string]run.Response{
+		"pi list": {Stdout: stdout},
+	}})
+	paths, err := PiPaths(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := paths["git:github.com/obra/superpowers"]; got != "/Users/you/.pi/agent/git/github.com/obra/superpowers" {
+		t.Errorf("superpowers path = %q", got)
+	}
+	if got := paths["npm:pi-quiet"]; got != "/Users/you/.pi/agent/npm/node_modules/pi-quiet" {
+		t.Errorf("pi-quiet path = %q", got)
+	}
+}
