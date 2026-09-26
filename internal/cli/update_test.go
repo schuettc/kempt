@@ -148,6 +148,9 @@ spec = 1
 	if !strings.Contains(out.String(), "rolled pi-creel to 0.1.1") {
 		t.Errorf("missing roll line:\n%s", out.String())
 	}
+	if !strings.Contains(out.String(), "rolling: 1 checked, 1 rolled, 0 skipped") {
+		t.Errorf("missing rolling summary:\n%s", out.String())
+	}
 	rolled := false
 	for _, c := range fr.Calls {
 		if c == "pi install npm:pi-creel" {
@@ -159,5 +162,65 @@ spec = 1
 	}
 	if !rolled {
 		t.Errorf("rolling entry not rolled; calls=%v", fr.Calls)
+	}
+}
+
+// TestRollRollingSummaryWhenCurrent: nothing behind still prints a summary, so
+// a no-op roll is distinguishable from a skipped one.
+func TestRollRollingSummaryWhenCurrent(t *testing.T) {
+	dir := writeTempManifest(t, `
+[kempt]
+spec = 1
+[packages.pi]
+  [[packages.pi.install]]
+  pi = ["npm:pi-creel", "npm:pi-bang", "npm:pi-quiet@0.2.0"]
+`)
+	restore, _ := stubContextRuns(t, dir, nil, map[string]string{
+		"pi list":                   "  npm:pi-creel@0.1.1\n  npm:pi-bang@1.0.0\n  npm:pi-quiet@0.2.0\n",
+		"npm view pi-creel version": "0.1.1\n",
+		"npm view pi-bang version":  "1.0.0\n",
+	}, nil)
+	defer restore()
+
+	_, selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := rollRolling(ctx, selected, &out); err != nil {
+		t.Fatal(err)
+	}
+	if got := out.String(); got != "rolling: 2 checked, 0 rolled, 0 skipped\n" {
+		t.Errorf("output = %q", got)
+	}
+}
+
+// TestUpdateReportsBinaryStanding: update always says where the binary stands,
+// whether or not self-update replaced it.
+func TestUpdateReportsBinaryStanding(t *testing.T) {
+	cases := []struct {
+		updated bool
+		ver     string
+		want    string
+	}{
+		{false, "0.5.4", "kempt 0.5.4 (current)\n"},
+		{true, "0.5.5", "kempt updated dev -> 0.5.5\n"},
+	}
+	for _, c := range cases {
+		r := &run.FakeRunner{}
+		_, repo := setupUpdate(t, r, release.FakeReleases{})
+		r.Responses = map[string]run.Response{
+			"git -C " + repo + " pull --rebase --autostash": {Stdout: ""},
+		}
+		selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error) {
+			return c.updated, c.ver, nil
+		}
+		var out, errw bytes.Buffer
+		if code := Dispatch([]string{"update"}, &out, &errw); code != 0 {
+			t.Fatalf("exit = %d; out=%s err=%s", code, out.String(), errw.String())
+		}
+		if !strings.Contains(out.String(), c.want) {
+			t.Errorf("updated=%v: missing %q in:\n%s", c.updated, c.want, out.String())
+		}
 	}
 }

@@ -46,7 +46,8 @@ func scanExtensions(ctx *machine.Context, selected []*manifest.Package) ([]toolS
 // entries and the pin for pinned ones. Network path; a per-entry resolution or
 // roll failure is a warning, not fatal, so one unreachable registry or site
 // never aborts the whole update. Pinned entries are handled by the offline
-// converge that follows, not here.
+// converge that follows, not here. It always ends with a one-line summary
+// (checked/rolled/skipped) so a run with nothing behind is still visible.
 func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writer) error {
 	statuses, err := scanTools(ctx, selected)
 	if err != nil {
@@ -59,12 +60,15 @@ func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writ
 	statuses = append(statuses, exts...)
 
 	h, _ := engine.HandlerFor("download")
+	var checked, rolled, skipped int
 	for _, s := range statuses {
 		if s.Mode != "latest" {
 			continue
 		}
+		checked++
 		if s.Err != nil {
 			fmt.Fprintf(out, "skipping %s: could not resolve latest: %v\n", s.Tool, s.Err)
+			skipped++
 			continue
 		}
 		if !s.Behind {
@@ -78,9 +82,12 @@ func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writ
 		}
 		if aerr != nil {
 			fmt.Fprintf(out, "skipping %s: %v\n", s.Tool, aerr)
+			skipped++
 			continue
 		}
 		fmt.Fprintf(out, "rolled %s to %s\n", s.Tool, s.Target)
+		rolled++
 	}
+	fmt.Fprintf(out, "rolling: %d checked, %d rolled, %d skipped\n", checked, rolled, skipped)
 	return nil
 }
