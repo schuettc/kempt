@@ -37,7 +37,7 @@ func runLint(args []string, out, errw io.Writer) error {
 		findings = append(findings, manifest.Validate(m)...)
 	}
 	for _, f := range findings {
-		fmt.Fprintf(out, "%s: %s: %s\n", name, f.Path, f.Msg)
+		_, _ = fmt.Fprintf(out, "%s: %s: %s\n", name, f.Path, f.Msg)
 	}
 	if len(findings) > 0 {
 		return fmt.Errorf("%d finding(s)", len(findings))

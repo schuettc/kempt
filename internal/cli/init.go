@@ -126,7 +126,7 @@ func runInit(args []string, out, errw io.Writer) error {
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
+			_, _ = fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
 		}
 		return fmt.Errorf("manifest has findings; run kempt lint")
 	}
@@ -156,7 +156,7 @@ func runInit(args []string, out, errw io.Writer) error {
 			return err
 		}
 		if !res.Confirmed {
-			fmt.Fprintln(out, "init cancelled")
+			_, _ = fmt.Fprintln(out, "init cancelled")
 			return nil
 		}
 		chosenProfile = res.Profile
@@ -187,27 +187,27 @@ func runInit(args []string, out, errw io.Writer) error {
 
 	changes := countChanges(plan)
 	if changes == 0 {
-		fmt.Fprintln(out, "nothing to do")
+		_, _ = fmt.Fprintln(out, "nothing to do")
 		return nil
 	}
 
 	if !*v.yes {
-		fmt.Fprintf(out, "apply %d changes? [y/N] ", changes)
+		_, _ = fmt.Fprintf(out, "apply %d changes? [y/N] ", changes)
 		line, _ := bufio.NewReader(stdin).ReadString('\n')
 		switch strings.ToLower(strings.TrimSpace(line)) {
 		case "y", "yes":
 			// proceed
 		default:
-			fmt.Fprintln(out, "aborted")
+			_, _ = fmt.Fprintln(out, "aborted")
 			return fmt.Errorf("aborted")
 		}
 	}
 
 	applied, failed := executeAndVerify(ctx, plan, out)
 	blocked := countBlocked(plan)
-	fmt.Fprintf(out, "%d applied, %d failed\n", applied, failed)
+	_, _ = fmt.Fprintf(out, "%d applied, %d failed\n", applied, failed)
 	if blocked > 0 {
-		fmt.Fprintf(out, "%d blocked (unresolved)\n", blocked)
+		_, _ = fmt.Fprintf(out, "%d blocked (unresolved)\n", blocked)
 	}
 	if failed > 0 {
 		return fmt.Errorf("%d step(s) failed", failed)

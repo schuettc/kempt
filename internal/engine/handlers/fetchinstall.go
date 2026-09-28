@@ -58,7 +58,7 @@ func extractBinary(assetName string, data []byte, bin string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: gzip: %w", bin, err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()

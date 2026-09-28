@@ -25,7 +25,7 @@ var openTarballStream = func(url string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("GET %s: HTTP %d", url, resp.StatusCode)
 	}
 	return resp.Body, nil
@@ -39,7 +39,7 @@ func fetchTarball(url, dir string) error {
 	if err != nil {
 		return err
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 	return extractTarballStripped(body, dir)
 }
 
@@ -52,7 +52,7 @@ func extractTarballStripped(r io.Reader, dir string) error {
 	if err != nil {
 		return fmt.Errorf("gzip: %w", err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	root, err := filepath.Abs(dir)
 	if err != nil {
@@ -93,7 +93,7 @@ func extractTarballStripped(r io.Reader, dir string) error {
 				return err
 			}
 			if _, err := io.Copy(f, io.LimitReader(tr, 512<<20)); err != nil {
-				f.Close()
+				_ = f.Close()
 				return err
 			}
 			if err := f.Close(); err != nil {

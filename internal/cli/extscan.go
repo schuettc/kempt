@@ -67,7 +67,7 @@ func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writ
 		}
 		checked++
 		if s.Err != nil {
-			fmt.Fprintf(out, "skipping %s: could not resolve latest: %v\n", s.Tool, s.Err)
+			_, _ = fmt.Fprintf(out, "skipping %s: could not resolve latest: %v\n", s.Tool, s.Err)
 			skipped++
 			continue
 		}
@@ -81,13 +81,13 @@ func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writ
 			aerr = handlers.RollExtension(ctx, s.Ext)
 		}
 		if aerr != nil {
-			fmt.Fprintf(out, "skipping %s: %v\n", s.Tool, aerr)
+			_, _ = fmt.Fprintf(out, "skipping %s: %v\n", s.Tool, aerr)
 			skipped++
 			continue
 		}
-		fmt.Fprintf(out, "rolled %s to %s\n", s.Tool, s.Target)
+		_, _ = fmt.Fprintf(out, "rolled %s to %s\n", s.Tool, s.Target)
 		rolled++
 	}
-	fmt.Fprintf(out, "rolling: %d checked, %d rolled, %d skipped\n", checked, rolled, skipped)
+	_, _ = fmt.Fprintf(out, "rolling: %d checked, %d rolled, %d skipped\n", checked, rolled, skipped)
 	return nil
 }

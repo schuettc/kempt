@@ -83,7 +83,7 @@ func runRefresh(args []string, out, errw io.Writer) error {
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
+			_, _ = fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
 		}
 		return fmt.Errorf("manifest has findings; run kempt lint")
 	}
@@ -131,7 +131,7 @@ func runRefresh(args []string, out, errw io.Writer) error {
 	if degraded {
 		line += " (fetch failed; using local checkout)"
 	}
-	fmt.Fprintln(out, line)
+	_, _ = fmt.Fprintln(out, line)
 	return nil
 }
 

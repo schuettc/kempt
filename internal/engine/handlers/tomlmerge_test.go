@@ -27,7 +27,7 @@ func writeTOML(t *testing.T, path string, v map[string]any) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if err := toml.NewEncoder(f).Encode(v); err != nil {
 		t.Fatal(err)
 	}

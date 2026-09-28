@@ -44,7 +44,7 @@ func configGet(args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "%t\n", st.AutoApplyFiles)
+	_, _ = fmt.Fprintf(out, "%t\n", st.AutoApplyFiles)
 	return nil
 }
 
@@ -67,6 +67,6 @@ func configSet(args []string, out io.Writer) error {
 	if err := saveState(st); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "%s = %t\n", autoApplyFilesKey, v)
+	_, _ = fmt.Fprintf(out, "%s = %t\n", autoApplyFilesKey, v)
 	return nil
 }

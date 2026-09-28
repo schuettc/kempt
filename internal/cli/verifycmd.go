@@ -65,7 +65,7 @@ func runVerify(args []string, out, errw io.Writer) error {
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
+			_, _ = fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
 		}
 		return fmt.Errorf("manifest has findings; run kempt lint")
 	}
@@ -103,7 +103,7 @@ func runVerify(args []string, out, errw io.Writer) error {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(out, delta.Detail)
+			_, _ = fmt.Fprintln(out, delta.Detail)
 			if delta.Op == engine.OpBlocked {
 				failed++
 			} else {
@@ -113,10 +113,10 @@ func runVerify(args []string, out, errw io.Writer) error {
 	}
 
 	if total == 0 {
-		fmt.Fprintln(out, "no verify steps")
+		_, _ = fmt.Fprintln(out, "no verify steps")
 		return nil
 	}
-	fmt.Fprintf(out, "%d passed, %d failed\n", passed, failed)
+	_, _ = fmt.Fprintf(out, "%d passed, %d failed\n", passed, failed)
 	if failed > 0 {
 		return fmt.Errorf("%d verify check(s) failed", failed)
 	}

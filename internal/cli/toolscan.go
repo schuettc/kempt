@@ -31,7 +31,7 @@ func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
+			_, _ = fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
 		}
 		return nil, nil, nil, fmt.Errorf("manifest has findings; run kempt lint")
 	}

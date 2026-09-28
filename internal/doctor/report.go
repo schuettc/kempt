@@ -34,7 +34,7 @@ func (r Report) Failed(strict bool) bool {
 
 func (r Report) WriteHuman(w io.Writer) {
 	if len(r.Findings) == 0 {
-		fmt.Fprintln(w, "healthy: no findings")
+		_, _ = fmt.Fprintln(w, "healthy: no findings")
 		return
 	}
 	for _, sev := range []Severity{Error, Warn, Info} {
@@ -46,12 +46,12 @@ func (r Report) WriteHuman(w io.Writer) {
 			if f.Package != "" {
 				pkg = " [" + f.Package + "]"
 			}
-			fmt.Fprintf(w, "  %-5s %s%s %s\n", f.Severity, f.Check, pkg, f.Detail)
-			fmt.Fprintf(w, "        → %s\n", f.Remediation)
+			_, _ = fmt.Fprintf(w, "  %-5s %s%s %s\n", f.Severity, f.Check, pkg, f.Detail)
+			_, _ = fmt.Fprintf(w, "        → %s\n", f.Remediation)
 		}
 	}
 	e, wn, i := r.Counts()
-	fmt.Fprintf(w, "%d errors, %d warnings, %d info\n", e, wn, i)
+	_, _ = fmt.Fprintf(w, "%d errors, %d warnings, %d info\n", e, wn, i)
 }
 
 func (r Report) WriteJSON(w io.Writer) error {

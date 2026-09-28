@@ -20,7 +20,7 @@ func runSchema(args []string, out, errw io.Writer) error {
 	if len(args) > 0 {
 		return UsageError{Msg: "usage: kempt schema"}
 	}
-	out.Write(schema.JSON())
-	io.WriteString(out, "\n")
+	_, _ = out.Write(schema.JSON())
+	_, _ = io.WriteString(out, "\n")
 	return nil
 }

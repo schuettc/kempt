@@ -63,7 +63,7 @@ func TestRealReleasesLatestTagNoRedirect(t *testing.T) {
 func TestRealReleasesDownload(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/ok" {
-			w.Write([]byte("hello"))
+			_, _ = w.Write([]byte("hello"))
 			return
 		}
 		http.NotFound(w, r)

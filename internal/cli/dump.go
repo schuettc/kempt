@@ -51,11 +51,11 @@ func runDump(args []string, out, errw io.Writer) error {
 	}
 
 	// Header comments.
-	fmt.Fprintln(out, "# kempt dump — suggestions; review before committing")
-	fmt.Fprintln(out, "# note: symlink detection is shallow (depth-1 scan of ~ and ~/.config).")
-	fmt.Fprintln(out, "")
-	fmt.Fprintln(out, "[kempt]")
-	fmt.Fprintln(out, "spec = 1")
+	_, _ = fmt.Fprintln(out, "# kempt dump — suggestions; review before committing")
+	_, _ = fmt.Fprintln(out, "# note: symlink detection is shallow (depth-1 scan of ~ and ~/.config).")
+	_, _ = fmt.Fprintln(out, "")
+	_, _ = fmt.Fprintln(out, "[kempt]")
+	_, _ = fmt.Fprintln(out, "spec = 1")
 
 	dumpBrew(ctx, out)
 
@@ -70,8 +70,8 @@ func runDump(args []string, out, errw io.Writer) error {
 // `brew list --cask -1`. If brew is absent, it emits a comment and returns.
 func dumpBrew(ctx *machine.Context, out io.Writer) {
 	if _, err := ctx.Runner.LookPath("brew"); err != nil {
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "# brew not found; skipping install suggestions")
+		_, _ = fmt.Fprintln(out, "")
+		_, _ = fmt.Fprintln(out, "# brew not found; skipping install suggestions")
 		return
 	}
 
@@ -82,9 +82,9 @@ func dumpBrew(ctx *machine.Context, out io.Writer) {
 		return
 	}
 
-	fmt.Fprintln(out, "")
-	fmt.Fprintln(out, "[packages.brew]")
-	fmt.Fprintln(out, "  [[packages.brew.install]]")
+	_, _ = fmt.Fprintln(out, "")
+	_, _ = fmt.Fprintln(out, "[packages.brew]")
+	_, _ = fmt.Fprintln(out, "  [[packages.brew.install]]")
 
 	var parts []string
 	if len(formulas) > 0 {
@@ -93,7 +93,7 @@ func dumpBrew(ctx *machine.Context, out io.Writer) {
 	if len(casks) > 0 {
 		parts = append(parts, "casks = "+tomlStringArray(casks))
 	}
-	fmt.Fprintf(out, "  brew = { %s }\n", strings.Join(parts, ", "))
+	_, _ = fmt.Fprintf(out, "  brew = { %s }\n", strings.Join(parts, ", "))
 }
 
 // brewList runs a brew inventory command and returns sorted, trimmed,
@@ -136,19 +136,19 @@ func dumpSymlinks(ctx *machine.Context, repo string, out io.Writer) {
 	found = append(found, scanSymlinks(ctx, filepath.Join(ctx.Home, ".config"), repoAbs)...)
 
 	if len(found) == 0 {
-		fmt.Fprintln(out, "")
-		fmt.Fprintln(out, "# no repo-linked dotfiles found in ~ or ~/.config")
+		_, _ = fmt.Fprintln(out, "")
+		_, _ = fmt.Fprintln(out, "# no repo-linked dotfiles found in ~ or ~/.config")
 		return
 	}
 
 	sort.Slice(found, func(i, j int) bool { return found[i].to < found[j].to })
 
-	fmt.Fprintln(out, "")
-	fmt.Fprintln(out, "[packages.dotfiles]")
+	_, _ = fmt.Fprintln(out, "")
+	_, _ = fmt.Fprintln(out, "[packages.dotfiles]")
 	for _, s := range found {
-		fmt.Fprintln(out, "  [[packages.dotfiles.symlink]]")
-		fmt.Fprintf(out, "  from = %q\n", s.from)
-		fmt.Fprintf(out, "  to = %q\n", s.to)
+		_, _ = fmt.Fprintln(out, "  [[packages.dotfiles.symlink]]")
+		_, _ = fmt.Fprintf(out, "  from = %q\n", s.from)
+		_, _ = fmt.Fprintf(out, "  to = %q\n", s.to)
 	}
 }
 
