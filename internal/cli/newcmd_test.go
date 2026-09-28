@@ -56,14 +56,7 @@ func TestNewRefusesExisting(t *testing.T) {
 
 func TestNewDefaultsToCwd(t *testing.T) {
 	dir := t.TempDir()
-	old, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Chdir(old)
+	t.Chdir(dir) // restored when the test ends
 	var out, errw bytes.Buffer
 	if got := Dispatch([]string{"new"}, &out, &errw); got != 0 {
 		t.Fatalf("exit = %d, stderr = %s", got, errw.String())

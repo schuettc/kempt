@@ -73,12 +73,12 @@ func Execute(ctx *machine.Context, p *Plan, out io.Writer) (failed int) {
 			}
 			if err := h.Apply(ctx, sr.Step); err != nil {
 				sr.Err = err
-				fmt.Fprintf(out, "! %s: %s: %v\n", pp.Name, sr.Delta.Detail, err)
+				_, _ = fmt.Fprintf(out, "! %s: %s: %v\n", pp.Name, sr.Delta.Detail, err)
 				failed++
 				break
 			}
 			sr.Applied = true
-			fmt.Fprintf(out, "applied: %s\n", sr.Delta.Detail)
+			_, _ = fmt.Fprintf(out, "applied: %s\n", sr.Delta.Detail)
 		}
 	}
 	return failed

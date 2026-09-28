@@ -63,14 +63,14 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	updated, newVer, uerr := selfUpdate(app, out, errw)
 	if uerr != nil {
 		if isPermissionErr(uerr) {
-			fmt.Fprintf(out, "binary self-update skipped: %v\n", uerr)
+			_, _ = fmt.Fprintf(out, "binary self-update skipped: %v\n", uerr)
 		} else {
 			return uerr
 		}
 	} else if updated {
-		fmt.Fprintf(out, "kempt updated %s -> %s\n", version.Number(), newVer)
+		_, _ = fmt.Fprintf(out, "kempt updated %s -> %s\n", version.Number(), newVer)
 	} else {
-		fmt.Fprintf(out, "kempt %s (current)\n", newVer)
+		_, _ = fmt.Fprintf(out, "kempt %s (current)\n", newVer)
 	}
 
 	// 3. Load and select from the freshly-pulled repo so the roll step and the
@@ -86,7 +86,7 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
+			_, _ = fmt.Fprintf(errw, "%s: %s: %s\n", manifestPath, f.Path, f.Msg)
 		}
 		return fmt.Errorf("manifest has findings; run kempt lint")
 	}
@@ -112,9 +112,9 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 
 	applied, failed := executeAndVerify(ctx, plan, out)
 	blocked := countBlocked(plan)
-	fmt.Fprintf(out, "%d applied, %d failed\n", applied, failed)
+	_, _ = fmt.Fprintf(out, "%d applied, %d failed\n", applied, failed)
 	if blocked > 0 {
-		fmt.Fprintf(out, "%d blocked (unresolved)\n", blocked)
+		_, _ = fmt.Fprintf(out, "%d blocked (unresolved)\n", blocked)
 	}
 	if failed > 0 {
 		return fmt.Errorf("%d step(s) failed", failed)

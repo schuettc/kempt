@@ -78,7 +78,7 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 			continue
 		}
 		if s.Err != nil {
-			fmt.Fprintf(out, "skipping %s: could not resolve latest: %v\n", s.Tool, s.Err)
+			_, _ = fmt.Fprintf(out, "skipping %s: could not resolve latest: %v\n", s.Tool, s.Err)
 			continue
 		}
 		if s.Behind {
@@ -86,16 +86,16 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 		}
 	}
 	if len(todo) == 0 {
-		fmt.Fprintln(out, "everything up to date")
+		_, _ = fmt.Fprintln(out, "everything up to date")
 		return nil
 	}
 	for _, s := range todo {
-		fmt.Fprintf(out, "%s  %s -> %s\n", s.Tool, s.Installed, s.Target)
+		_, _ = fmt.Fprintf(out, "%s  %s -> %s\n", s.Tool, s.Installed, s.Target)
 	}
 	if !*v.yes {
-		fmt.Fprint(out, "upgrade these? [y/N] ")
+		_, _ = fmt.Fprint(out, "upgrade these? [y/N] ")
 		if !confirm() {
-			fmt.Fprintln(out, "aborted")
+			_, _ = fmt.Fprintln(out, "aborted")
 			return nil
 		}
 	}
@@ -115,7 +115,7 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 				return fmt.Errorf("upgrade %s: %w", s.Tool, err)
 			}
 		}
-		fmt.Fprintf(out, "upgraded %s to %s\n", s.Tool, s.Target)
+		_, _ = fmt.Fprintf(out, "upgraded %s to %s\n", s.Tool, s.Target)
 	}
 	return nil
 }

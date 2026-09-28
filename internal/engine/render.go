@@ -30,7 +30,7 @@ func Render(p *Plan, w io.Writer, verbose bool) {
 
 	for _, pp := range p.Packages {
 		if pp.Skipped {
-			fmt.Fprintf(w, "package %s (skipped: %s)\n", pp.Name, pp.Detail)
+			_, _ = fmt.Fprintf(w, "package %s (skipped: %s)\n", pp.Name, pp.Detail)
 			continue
 		}
 		// The header prints lazily in quiet mode: not until a noteworthy step
@@ -38,7 +38,7 @@ func Render(p *Plan, w io.Writer, verbose bool) {
 		headerPrinted := false
 		header := func() {
 			if !headerPrinted {
-				fmt.Fprintf(w, "package %s\n", pp.Name)
+				_, _ = fmt.Fprintf(w, "package %s\n", pp.Name)
 				headerPrinted = true
 			}
 		}
@@ -65,17 +65,17 @@ func Render(p *Plan, w io.Writer, verbose bool) {
 			// Print the step in verbose mode, or in quiet mode when it is not a
 			// clean ✓ (the header is materialised on demand for the latter).
 			if verbose {
-				fmt.Fprintf(w, "  %s %s\n", markers[sr.Delta.Op], sr.Delta.Detail)
+				_, _ = fmt.Fprintf(w, "  %s %s\n", markers[sr.Delta.Op], sr.Delta.Detail)
 			} else if sr.Delta.Op != OpNoop {
 				header()
-				fmt.Fprintf(w, "  %s %s\n", markers[sr.Delta.Op], sr.Delta.Detail)
+				_, _ = fmt.Fprintf(w, "  %s %s\n", markers[sr.Delta.Op], sr.Delta.Detail)
 			}
 		}
 	}
 
-	fmt.Fprintf(w, "%d changes, %d ok, %d skipped, %d blocked\n", changes, ok, skipped, blocked)
+	_, _ = fmt.Fprintf(w, "%d changes, %d ok, %d skipped, %d blocked\n", changes, ok, skipped, blocked)
 	if changes > 0 {
-		fmt.Fprintf(w, "software changes: %d, file changes: %d\n", software, files)
+		_, _ = fmt.Fprintf(w, "software changes: %d, file changes: %d\n", software, files)
 	}
 
 	// Manual follow-ups are static, repeat-every-run reminders (codex login,
@@ -89,9 +89,9 @@ func Render(p *Plan, w io.Writer, verbose bool) {
 		allNotes = append(allNotes, pp.Notes...)
 	}
 	if len(allNotes) > 0 {
-		fmt.Fprintf(w, "manual follow-ups:\n")
+		_, _ = fmt.Fprintf(w, "manual follow-ups:\n")
 		for _, note := range allNotes {
-			fmt.Fprintf(w, "  - %s\n", note)
+			_, _ = fmt.Fprintf(w, "  - %s\n", note)
 		}
 	}
 }

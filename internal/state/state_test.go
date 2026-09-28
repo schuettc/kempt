@@ -34,7 +34,9 @@ func TestLoadMissingIsNotError(t *testing.T) {
 
 func TestLoadCorruptIsError(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "state.json"), []byte("{not json"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := (&state.Store{Dir: dir}).Load(); err == nil {
 		t.Fatal("want error on corrupt state")
 	}

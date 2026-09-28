@@ -73,15 +73,15 @@ func runOutdated(args []string, out, errw io.Writer) error {
 	for _, s := range statuses {
 		switch {
 		case s.Err != nil:
-			fmt.Fprintf(out, "%s  ? (could not resolve latest: %v)\n", s.Tool, s.Err)
+			_, _ = fmt.Fprintf(out, "%s  ? (could not resolve latest: %v)\n", s.Tool, s.Err)
 			errored++
 		case s.Behind:
-			fmt.Fprintf(out, "%s  %s -> %s  (%s)\n", s.Tool, s.Installed, s.Target, s.Mode)
+			_, _ = fmt.Fprintf(out, "%s  %s -> %s  (%s)\n", s.Tool, s.Installed, s.Target, s.Mode)
 			behind++
 		}
 	}
 	if behind == 0 && errored == 0 {
-		fmt.Fprintln(out, "everything up to date")
+		_, _ = fmt.Fprintln(out, "everything up to date")
 	}
 	return nil
 }

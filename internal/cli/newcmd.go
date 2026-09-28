@@ -60,7 +60,7 @@ func runNew(args []string, out, errw io.Writer) error {
 		if err := os.WriteFile(f.path, f.content, 0o644); err != nil {
 			return err
 		}
-		fmt.Fprintf(out, "created %s\n", f.path)
+		_, _ = fmt.Fprintf(out, "created %s\n", f.path)
 	}
 	return nil
 }

@@ -27,20 +27,20 @@ func init() {
 func runStatus(args []string, out, errw io.Writer) error {
 	store, err := statusStore()
 	if err != nil {
-		fmt.Fprintln(out, "kempt: status unavailable")
+		_, _ = fmt.Fprintln(out, "kempt: status unavailable")
 		return nil
 	}
 	st, existed, err := store.LoadStatus()
 	if err != nil {
-		fmt.Fprintln(out, "kempt: no status yet — run kempt refresh")
+		_, _ = fmt.Fprintln(out, "kempt: no status yet — run kempt refresh")
 		return nil
 	}
 	if !existed {
-		fmt.Fprintln(out, "kempt: no status yet — run kempt refresh")
+		_, _ = fmt.Fprintln(out, "kempt: no status yet — run kempt refresh")
 		return nil
 	}
 
-	fmt.Fprintln(out, formatStatus(st))
+	_, _ = fmt.Fprintln(out, formatStatus(st))
 	return nil
 }
 

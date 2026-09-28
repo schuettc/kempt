@@ -57,7 +57,7 @@ func (r RealReleases) LatestTag(repo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	loc := resp.Header.Get("Location")
 	if loc == "" {
@@ -87,7 +87,7 @@ func (r RealReleases) Download(url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download %s: status %d", url, resp.StatusCode)
 	}

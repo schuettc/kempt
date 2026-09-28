@@ -4,10 +4,10 @@ on:
   pull_request:
 jobs:
   verify:
-    runs-on: macos-latest
+    # kempt only runs on macOS, and its tests exercise macOS behaviour.
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with: { go-version-file: go.mod }
-      - uses: extractions/setup-just@v4
-      - run: just verify
+      - uses: actions/checkout@v7.0.1
+      # The family Go gate: gofmt, vet, golangci-lint (family config), race
+      # tests, and a build for every release target.
+      - uses: schuettc/tools-actions/go-ci@v0.2.1

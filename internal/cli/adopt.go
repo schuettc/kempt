@@ -111,11 +111,11 @@ func runAdopt(args []string, out, errw io.Writer) error {
 
 	sort.Strings(addedDeps)
 	if len(addedDeps) > 0 {
-		fmt.Fprintf(out, "adopted %s (+ deps: %s)\n", pkg, joinComma(addedDeps))
+		_, _ = fmt.Fprintf(out, "adopted %s (+ deps: %s)\n", pkg, joinComma(addedDeps))
 	} else {
-		fmt.Fprintf(out, "adopted %s\n", pkg)
+		_, _ = fmt.Fprintf(out, "adopted %s\n", pkg)
 	}
-	fmt.Fprintln(out, "run kempt apply to converge")
+	_, _ = fmt.Fprintln(out, "run kempt apply to converge")
 	return nil
 }
 
@@ -173,7 +173,7 @@ func runDrop(args []string, out, errw io.Writer) error {
 	if err := saveState(st); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "dropped %s\n", pkg)
+	_, _ = fmt.Fprintf(out, "dropped %s\n", pkg)
 	return nil
 }
 

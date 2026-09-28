@@ -72,7 +72,7 @@ func runDoctor(args []string, out, errw io.Writer) error {
 	}
 	if len(findings) > 0 {
 		for _, f := range findings {
-			fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
+			_, _ = fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
 		}
 		return UsageError{Msg: "manifest has findings; run kempt lint"}
 	}
