@@ -10,4 +10,4 @@ jobs:
       - uses: actions/checkout@v7.0.1
       # The family Go gate: gofmt, vet, golangci-lint (family config), race
       # tests, and a build for every release target.
-      - uses: schuettc/tools-actions/go-ci@v0.2.1
+      - uses: schuettc/tools-actions/go-ci@v0.2.2
