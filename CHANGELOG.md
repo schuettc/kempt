@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+
+- **Layers.** A machine can apply manifests on top of its base: `kempt layer add <name> <git-url | path>` for a work, personal or machine-only layer, and `kempt layer add -project <dir>` for a project's `.kempt/kempt.toml`. A layer file says `[kempt] layer = "user"` or `"project"`. `plan`, `apply`, `update`, `doctor`, `verify`, `outdated`, `upgrade` and `refresh` converge the base and every layer as one plan, and `update` pulls git layers (never a project checkout). `layer list`, `layer remove` and `layer apply` manage them; `adopt`/`drop -layer` edit a layer's packages.
+- Layers compose instead of fighting. Merges from different layers into one file fold into one step, so a layer's entry in an array the base sets with `arrays = "replace"` survives every converge (a private overlay's settings were undone by each `kempt update` before). A later layer's pin of a pi/npm entry wins and the plan shows `^ <entry> (<layer> overrides base: ...)`. Two layers claiming one symlink, clone, binary or service label is a plan error naming both.
+- A project layer may only write files inside its checkout, and one added with `-project` is held when its file changes, until `kempt layer apply <name>`: a teammate's commit cannot change your machine unseen.
+- A layer whose source is missing is reported `skipped layer <name>: ...` and the rest converges.
+
 ## 0.5.10
 
 - `update` restarts into the new binary once it has replaced itself, so the roll and converge run the code it just installed. Before, they ran in the replaced process, so a fix to either only took effect on the next `update` (0.5.8 -> 0.5.9 printed 0.5.8's false "rolled" lines). If the restart fails, `update` says so and carries on with the old binary, as it did before.

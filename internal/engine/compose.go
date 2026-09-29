@@ -263,7 +263,7 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		if len(layers) < 2 {
 			continue
 		}
-		merged, contributors, overrides := foldGroup(ctx, pkgs, g)
+		merged, contributors, overrides := foldGroup(pkgs, g)
 		first := g.refs[0]
 		switch g.kind {
 		case "json-merge":
@@ -350,7 +350,7 @@ func (c *composed) rebuild(remove map[mergeRef]bool, move map[mergeRef]mergeRef)
 // foldGroup combines a group's merge documents in order: maps deep-merge,
 // arrays take the ordered union, and a scalar set differently by a later
 // layer wins and is reported as an override.
-func foldGroup(ctx *machine.Context, pkgs []*manifest.Package, g *mergeGroup) (map[string]any, []string, []string) {
+func foldGroup(pkgs []*manifest.Package, g *mergeGroup) (map[string]any, []string, []string) {
 	var acc any = map[string]any{}
 	setBy := map[string]string{}
 	var contributors, overrides []string

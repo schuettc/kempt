@@ -256,7 +256,7 @@ func applyWithState(prev, next *state.State, yes bool, out, errw io.Writer) erro
 	}
 	if err := runApply(applyArgs, out, errw); err != nil {
 		if rerr := saveState(prev); rerr != nil {
-			return fmt.Errorf("%v (and restoring the previous layers failed: %v)", err, rerr)
+			return fmt.Errorf("%w (and restoring the previous layers failed: %w)", err, rerr)
 		}
 		return err
 	}

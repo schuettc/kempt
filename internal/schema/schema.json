@@ -9,7 +9,12 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "spec": { "type": "integer", "const": 1 }
+        "spec": { "type": "integer", "const": 1 },
+        "layer": {
+          "type": "string",
+          "enum": ["user", "project"],
+          "description": "Marks this file as a layer applied on top of a base manifest (kempt layer add). user: configures the user's machine; project: configures one checkout, file primitives only, targets inside it."
+        }
       }
     },
     "packages": {
