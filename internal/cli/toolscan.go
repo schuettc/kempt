@@ -61,6 +61,13 @@ type toolStatus struct {
 	Err       error  // set when a "latest" tool's pointer could not be resolved
 }
 
+// majorBump reports whether taking s crosses a major version (see
+// handlers.SemverMajorBump): update holds these, and upgrade and outdated
+// mark them.
+func (s toolStatus) majorBump() bool {
+	return s.Behind && handlers.SemverMajorBump(s.Target, s.Installed)
+}
+
 // scanTools walks every download step in the selected packages and reports its
 // version standing. Pinned tools compare offline; "latest" tools resolve
 // /dl/<tool>/latest over the network (this is an outdated/upgrade path, which

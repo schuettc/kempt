@@ -4,6 +4,7 @@
 
 - `update` and `upgrade` now actually roll unversioned `npm:` pi entries. They ran `pi install <entry>`, which keeps the caret range pi recorded at first install, so a 0.x minor or a new major never landed (pi-hail stayed on 0.1.1 behind 0.7.0) while kempt printed "rolled". They now run `pi update <entry>`, which installs the latest release and leaves the settings entry unversioned.
 - A roll is confirmed by re-reading the installed version. One that leaves the entry behind is reported as `skipping <pkg>: still at X after the roll (latest Y)` by `update` and fails `upgrade`, instead of being counted as rolled.
+- `update` holds a major-version bump instead of rolling it: `held <name> A -> B (major release): run kempt upgrade <name>`, and the roll summary counts it (`… skipped, N held`). `upgrade` still takes it, marked `(major release)` in the list it asks about, and `outdated` marks it too. A 0.x minor is not a major bump. pi-mcp-adapter 3.0 stopped reading the config file 2.x used, so a silent major roll can break a working setup.
 
 ## 0.5.8
 

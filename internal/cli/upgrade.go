@@ -83,6 +83,10 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 		return nil
 	}
 	for _, s := range todo {
+		if s.majorBump() {
+			_, _ = fmt.Fprintf(out, "%s  %s -> %s  (major release)\n", s.Tool, s.Installed, s.Target)
+			continue
+		}
 		_, _ = fmt.Fprintf(out, "%s  %s -> %s\n", s.Tool, s.Installed, s.Target)
 	}
 	if !*v.yes {
