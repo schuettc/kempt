@@ -138,7 +138,7 @@ func (installHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 // npmInspect probes global npm packages (read-only) and reports the delta.
 func npmInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 	if _, err := ctx.Runner.LookPath("npm"); err != nil {
-		return engine.Delta{Op: engine.OpBlocked, Detail: "install (npm not found)"}, nil
+		return engine.Delta{Op: engine.OpBlocked, Detail: "install (npm not found)"}, nil //nolint:nilerr // a missing tool is a blocked step, not an error
 	}
 	installed, err := inventory.Npm(ctx)
 	if err != nil {
@@ -155,7 +155,7 @@ func npmInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 // invalidates the npm inventory cache key.
 func npmApply(ctx *machine.Context, desired []string) error {
 	if _, err := ctx.Runner.LookPath("npm"); err != nil {
-		return nil // absent → blocked was already signalled in Inspect Detail
+		return nil //nolint:nilerr // absent: Inspect already reported this step blocked
 	}
 	installed, err := inventory.Npm(ctx)
 	if err != nil {
@@ -177,7 +177,7 @@ func npmApply(ctx *machine.Context, desired []string) error {
 // piInspect probes registered pi packages (read-only) and reports the delta.
 func piInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 	if _, err := ctx.Runner.LookPath("pi"); err != nil {
-		return engine.Delta{Op: engine.OpBlocked, Detail: "install (pi not found)"}, nil
+		return engine.Delta{Op: engine.OpBlocked, Detail: "install (pi not found)"}, nil //nolint:nilerr // a missing tool is a blocked step, not an error
 	}
 	present, err := inventory.Pi(ctx)
 	if err != nil {
@@ -194,7 +194,7 @@ func piInspect(ctx *machine.Context, desired []string) (engine.Delta, error) {
 // invalidates the pi inventory cache key.
 func piApply(ctx *machine.Context, desired []string) error {
 	if _, err := ctx.Runner.LookPath("pi"); err != nil {
-		return nil // absent → blocked was already signalled in Inspect Detail
+		return nil //nolint:nilerr // absent: Inspect already reported this step blocked
 	}
 	present, err := inventory.Pi(ctx)
 	if err != nil {
@@ -277,7 +277,7 @@ func unimplementedBackend(ctx *machine.Context, st manifest.InstallStep) (string
 // only the three inventory commands, memoized via ctx.Cache.
 func brewInspect(ctx *machine.Context, spec *manifest.BrewSpec) (engine.Delta, error) {
 	if _, err := ctx.Runner.LookPath("brew"); err != nil {
-		return engine.Delta{Op: engine.OpBlocked, Detail: "install (brew not found)"}, nil
+		return engine.Delta{Op: engine.OpBlocked, Detail: "install (brew not found)"}, nil //nolint:nilerr // a missing tool is a blocked step, not an error
 	}
 
 	installedF, err := brewInventory(ctx, brewFormulaCmd)

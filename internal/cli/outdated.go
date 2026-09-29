@@ -48,21 +48,14 @@ func runOutdated(args []string, out, errw io.Writer) error {
 		return err
 	}
 
-	_, selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
+	selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
 	if err != nil {
 		return err
 	}
 
-	statuses, err := scanTools(ctx, selected)
-	if err != nil {
-		return err
-	}
+	statuses := scanTools(ctx, selected)
 
-	exts, err := scanExtensions(ctx, selected)
-	if err != nil {
-		return err
-	}
-	statuses = append(statuses, exts...)
+	statuses = append(statuses, scanExtensions(ctx, selected)...)
 
 	if *v.json {
 		return printOutdatedJSON(out, statuses)

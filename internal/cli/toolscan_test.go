@@ -25,10 +25,7 @@ func TestScanTools(t *testing.T) {
 		manifest.DownloadStep{Site: "tackle.tools", Tool: "scratch", Version: "0.5.1", Bin: "scratch"},
 	}}
 
-	got, err := scanTools(ctx, []*manifest.Package{pkg})
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := scanTools(ctx, []*manifest.Package{pkg})
 	if len(got) != 2 {
 		t.Fatalf("want 2 statuses, got %d", len(got))
 	}
@@ -61,10 +58,7 @@ func TestScanToolsPerToolNetworkFailureNonFatal(t *testing.T) {
 		manifest.DownloadStep{Site: "tackle.tools", Tool: "proj", Version: "latest", Bin: "proj"},
 	}}
 
-	got, err := scanTools(ctx, []*manifest.Package{pkg})
-	if err != nil {
-		t.Fatalf("scanTools must not fail the whole scan on a per-tool network error: %v", err)
-	}
+	got := scanTools(ctx, []*manifest.Package{pkg})
 	if len(got) != 2 {
 		t.Fatalf("want 2 statuses, got %d", len(got))
 	}
@@ -94,10 +88,7 @@ func TestScanToolsLatestNewerInstalledNotBehind(t *testing.T) {
 		manifest.DownloadStep{Site: "tackle.tools", Tool: "proj", Version: "latest", Bin: "proj"},
 	}}
 
-	got, err := scanTools(ctx, []*manifest.Package{pkg})
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := scanTools(ctx, []*manifest.Package{pkg})
 	if len(got) != 1 || got[0].Behind {
 		t.Fatalf("installed newer than latest pointer must not be Behind: %+v", got)
 	}

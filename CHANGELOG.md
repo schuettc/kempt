@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.8
+
+- Checked by the stricter family lint set (tools-actions v0.4.0); the few findings are fixed or carry a stated reason. No behaviour change.
+- `just verify` and the pre-push hook now run exactly what CI runs, at the version CI pins.
+- The stale `install.sh` copy is removed from the repo; `https://kempt.tools/install.sh` is the installer.
+
 ## 0.5.7
 
 - macOS binaries are signed with the Developer ID and notarized, so a copy downloaded in a browser runs instead of being quarantined by Gatekeeper. Releases are built through the family release actions (`schuettc/tools-actions`); the assets and `/dl` paths are unchanged.

@@ -13,17 +13,17 @@ import (
 
 // loadSelectedContext reproduces the manifest-read + parse + validate +
 // newContext + engine.Select sequence shared by plan, outdated, and upgrade.
-func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io.Writer) (*manifest.Manifest, []*manifest.Package, *machine.Context, error) {
+func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io.Writer) ([]*manifest.Package, *machine.Context, error) {
 	st, existed, err := loadState()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	manifestPath := resolveManifest(manifestFlag, st, existed)
 	profile, packages := resolveSelection(profileFlag, splitPackages(packagesFlag), st, existed)
 
 	src, repoDir, name, err := loadManifestSource(manifestPath, os.Stdin)
 	if err != nil {
-		return nil, nil, nil, UsageError{Msg: err.Error()}
+		return nil, nil, UsageError{Msg: err.Error()}
 	}
 	m, findings := manifest.Parse(src)
 	if m != nil {
@@ -33,17 +33,17 @@ func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io
 		for _, f := range findings {
 			_, _ = fmt.Fprintf(errw, "%s: %s: %s\n", name, f.Path, f.Msg)
 		}
-		return nil, nil, nil, fmt.Errorf("manifest has findings; run kempt lint")
+		return nil, nil, fmt.Errorf("manifest has findings; run kempt lint")
 	}
 	ctx, err := newContext(repoDir)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	selected, err := engine.Select(m, profile, packages)
 	if err != nil {
-		return nil, nil, nil, UsageError{Msg: err.Error()}
+		return nil, nil, UsageError{Msg: err.Error()}
 	}
-	return m, selected, ctx, nil
+	return selected, ctx, nil
 }
 
 // toolStatus is one download tool's version standing.
@@ -70,9 +70,8 @@ type toolStatus struct {
 // A network failure resolving a "latest" tool's pointer is reported on that
 // tool's status (Err set, Target empty, Behind false) rather than aborting
 // the whole scan — one unreachable site must never hide the standing of
-// every other tool. scanTools itself only returns a non-nil error for
-// failures unrelated to a single tool's latest lookup.
-func scanTools(ctx *machine.Context, selected []*manifest.Package) ([]toolStatus, error) {
+// every other tool.
+func scanTools(ctx *machine.Context, selected []*manifest.Package) []toolStatus {
 	var out []toolStatus
 	for _, pkg := range selected {
 		for _, step := range pkg.Steps {
@@ -99,5 +98,5 @@ func scanTools(ctx *machine.Context, selected []*manifest.Package) ([]toolStatus
 			out = append(out, ts)
 		}
 	}
-	return out, nil
+	return out
 }

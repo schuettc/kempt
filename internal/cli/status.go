@@ -10,9 +10,7 @@ import (
 
 // statusStore is a seam for tests to inject a custom Store without touching
 // the real XDG data directory.
-var statusStore = func() (*state.Store, error) {
-	return state.DefaultStore()
-}
+var statusStore = state.DefaultStore
 
 func init() {
 	Register(Command{
@@ -28,12 +26,12 @@ func runStatus(args []string, out, errw io.Writer) error {
 	store, err := statusStore()
 	if err != nil {
 		_, _ = fmt.Fprintln(out, "kempt: status unavailable")
-		return nil
+		return nil //nolint:nilerr // status is advisory: an unavailable store is reported, not an error
 	}
 	st, existed, err := store.LoadStatus()
 	if err != nil {
 		_, _ = fmt.Fprintln(out, "kempt: no status yet — run kempt refresh")
-		return nil
+		return nil //nolint:nilerr // status is advisory: an unreadable status file reads as none yet
 	}
 	if !existed {
 		_, _ = fmt.Fprintln(out, "kempt: no status yet — run kempt refresh")

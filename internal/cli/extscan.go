@@ -15,7 +15,7 @@ import (
 // Mode "latest"). Latest is resolved live via npm, or git ls-remote for git
 // entries (an outdated/upgrade/update-roll path). A resolution failure is reported on that entry (Err set,
 // Behind false) rather than aborting the scan, mirroring scanTools.
-func scanExtensions(ctx *machine.Context, selected []*manifest.Package) ([]toolStatus, error) {
+func scanExtensions(ctx *machine.Context, selected []*manifest.Package) []toolStatus {
 	var out []toolStatus
 	for _, pkg := range selected {
 		for _, step := range pkg.Steps {
@@ -37,7 +37,7 @@ func scanExtensions(ctx *machine.Context, selected []*manifest.Package) ([]toolS
 			}
 		}
 	}
-	return out, nil
+	return out
 }
 
 // rollRolling resolves and rolls every behind rolling entry (download
@@ -49,15 +49,8 @@ func scanExtensions(ctx *machine.Context, selected []*manifest.Package) ([]toolS
 // converge that follows, not here. It always ends with a one-line summary
 // (checked/rolled/skipped) so a run with nothing behind is still visible.
 func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writer) error {
-	statuses, err := scanTools(ctx, selected)
-	if err != nil {
-		return err
-	}
-	exts, err := scanExtensions(ctx, selected)
-	if err != nil {
-		return err
-	}
-	statuses = append(statuses, exts...)
+	statuses := scanTools(ctx, selected)
+	statuses = append(statuses, scanExtensions(ctx, selected)...)
 
 	h, _ := engine.HandlerFor("download")
 	var checked, rolled, skipped int

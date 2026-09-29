@@ -61,15 +61,14 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 	// The binary's standing is always reported, so a current binary is
 	// distinguishable from a skipped check.
 	updated, newVer, uerr := selfUpdate(app, out, errw)
-	if uerr != nil {
-		if isPermissionErr(uerr) {
-			_, _ = fmt.Fprintf(out, "binary self-update skipped: %v\n", uerr)
-		} else {
-			return uerr
-		}
-	} else if updated {
+	switch {
+	case uerr != nil && isPermissionErr(uerr):
+		_, _ = fmt.Fprintf(out, "binary self-update skipped: %v\n", uerr)
+	case uerr != nil:
+		return uerr
+	case updated:
 		_, _ = fmt.Fprintf(out, "kempt updated %s -> %s\n", version.Number(), newVer)
-	} else {
+	default:
 		_, _ = fmt.Fprintf(out, "kempt %s (current)\n", newVer)
 	}
 
