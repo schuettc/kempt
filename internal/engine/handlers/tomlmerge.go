@@ -39,7 +39,7 @@ func (tomlMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 
 	var current any
 	if _, err := toml.DecodeFile(file, &current); err != nil {
-		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid TOML)"}, nil
+		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid TOML)"}, nil //nolint:nilerr // an unparseable target is a blocked step, not an error
 	}
 
 	desired := jsonutil.ExpandHome(toAnyTOML(st.Merge), ctx.Home)

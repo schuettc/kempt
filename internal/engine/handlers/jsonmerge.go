@@ -39,7 +39,7 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 
 	var current any
 	if err := json.Unmarshal(b, &current); err != nil {
-		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid JSON)"}, nil
+		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid JSON)"}, nil //nolint:nilerr // an unparseable target is a blocked step, not an error
 	}
 
 	desired := jsonutil.ExpandHome(jsonutil.ToAny(st.Merge), ctx.Home)

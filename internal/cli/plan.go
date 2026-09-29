@@ -64,7 +64,7 @@ func runPlan(args []string, out, errw io.Writer) error {
 		return err
 	}
 
-	_, selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
+	selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
 	if err != nil {
 		return err
 	}

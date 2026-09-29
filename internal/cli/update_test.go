@@ -137,7 +137,7 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	_, selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	_, selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

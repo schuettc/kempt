@@ -20,14 +20,11 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	_, selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := scanExtensions(ctx, selected)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := scanExtensions(ctx, selected)
 	if len(got) != 1 {
 		t.Fatalf("want 1 rolling status (pinned excluded), got %d: %+v", len(got), got)
 	}
@@ -108,14 +105,11 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	_, selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := scanExtensions(ctx, selected)
-	if err != nil {
-		t.Fatal(err)
-	}
+	got := scanExtensions(ctx, selected)
 	if len(got) != 1 {
 		t.Fatalf("want 1 rolling status, got %d: %+v", len(got), got)
 	}
