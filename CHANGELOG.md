@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.10
+
+- `update` restarts into the new binary once it has replaced itself, so the roll and converge run the code it just installed. Before, they ran in the replaced process, so a fix to either only took effect on the next `update` (0.5.8 -> 0.5.9 printed 0.5.8's false "rolled" lines). If the restart fails, `update` says so and carries on with the old binary, as it did before.
+
 ## 0.5.9
 
 - `update` and `upgrade` now actually roll unversioned `npm:` pi entries. They ran `pi install <entry>`, which keeps the caret range pi recorded at first install, so a 0.x minor or a new major never landed (pi-hail stayed on 0.1.1 behind 0.7.0) while kempt printed "rolled". They now run `pi update <entry>`, which installs the latest release and leaves the settings entry unversioned.
