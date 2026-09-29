@@ -170,7 +170,7 @@ the base manifest never names them. Full design:
 - Across layers, installs combine (a later layer's pin of an entry wins, and
   the plan says so); `json-merge` / `toml-merge` steps into one file fold into
   one step, so a `replace` array is the ordered union of what every layer
-  declares; and two layers claiming one symlink, clone, binary or service
+  declares (a layer's `append` to that array joins the union); and two layers claiming one symlink, clone, binary or service
   label is a plan error unless the definitions are identical.
 - A layer added with `-project` is held, not applied, when its file changes,
   until `kempt layer apply <name>`.

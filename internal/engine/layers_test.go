@@ -150,9 +150,47 @@ func TestFoldMergesMapsAndNotesScalarOverride(t *testing.T) {
 	}
 }
 
-// A file merged in both modes: the replace fold applies after the append fold,
-// so replace wins on a key both declare.
-func TestFoldMixedModesReplaceWins(t *testing.T) {
+// A layer appending to an array the base owns with replace: the entry joins the
+// replace union instead of being removed and re-added on every converge.
+func TestFoldAppendJoinsReplaceOwnedArray(t *testing.T) {
+	ctx := buildCtx(t)
+	pkgs := []*manifest.Package{
+		{Name: "pi", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/m.json", Arrays: "replace",
+			Merge: map[string]any{"list": []any{"r1"}}}}},
+		{Name: "work/p", Layer: "work", Steps: []manifest.Step{
+			manifest.JSONMergeStep{File: "~/m.json", Merge: map[string]any{"list": []any{"a1"}, "other": []any{"o1"}}},
+		}},
+	}
+	for run := 1; run <= 2; run++ {
+		plan, err := engine.BuildPlan(ctx, pkgs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		changes := 0
+		for _, pp := range plan.Packages {
+			for _, sr := range pp.Steps {
+				if sr.Delta.Op == engine.OpChange {
+					changes++
+				}
+			}
+		}
+		if run == 2 && changes != 0 {
+			t.Fatalf("second converge has %d changes: the layers flip-flop", changes)
+		}
+		var out bytes.Buffer
+		if failed := engine.Execute(ctx, plan, &out); failed != 0 {
+			t.Fatal(out.String())
+		}
+	}
+	got := readJSON(t, filepath.Join(ctx.Home, "m.json"))
+	if fmt.Sprint(got["list"]) != "[r1 a1]" || fmt.Sprint(got["other"]) != "[o1]" {
+		t.Errorf("got %v; want list [r1 a1] and the layer's own other [o1]", got)
+	}
+}
+
+// Both modes from two layers into one key: one replace union, applied after the
+// append fold.
+func TestFoldMixedModesUnion(t *testing.T) {
 	_, home := applyPkgs(t, []*manifest.Package{
 		{Name: "pi", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/m.json", Arrays: "replace",
 			Merge: map[string]any{"list": []any{"r1"}}}}},
@@ -161,8 +199,8 @@ func TestFoldMixedModesReplaceWins(t *testing.T) {
 			manifest.JSONMergeStep{File: "~/m.json", Arrays: "replace", Merge: map[string]any{"list": []any{"r2"}}},
 		}},
 	})
-	if got := readJSON(t, filepath.Join(home, "m.json"))["list"]; fmt.Sprint(got) != "[r1 r2]" {
-		t.Errorf("list = %v; want [r1 r2]", got)
+	if got := readJSON(t, filepath.Join(home, "m.json"))["list"]; fmt.Sprint(got) != "[r1 r2 a1]" {
+		t.Errorf("list = %v; want [r1 r2 a1]", got)
 	}
 }
 

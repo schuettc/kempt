@@ -210,11 +210,14 @@ type mergeGroup struct {
 	refs             []mergeRef
 }
 
-// foldMerges folds every json-merge (per arrays mode) and toml-merge into one
-// file, when the contributors span two or more layers, into a single step at
-// the first contributor's position. When a file has both an append and a
-// replace fold, the replace fold is moved after the last append contributor so
-// replace wins on a shared key.
+// foldMerges folds, for every file that merges from two or more layers, its
+// json-merge steps (one fold per arrays mode) and its toml-merge steps into a
+// single step each, at the first contributor's position. When such a file has
+// both an append and a replace fold, an array the replace fold owns absorbs the
+// append fold's elements for it (so a layer appending to a base's replace list
+// keeps its entry and converging is idempotent), and the replace fold moves
+// after the file's last append contributor. Files one layer merges alone keep
+// their steps exactly as written.
 func (c *composed) foldMerges(ctx *machine.Context) {
 	pkgs := c.pkgs
 	groups := map[string]*mergeGroup{}
@@ -248,20 +251,29 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		}
 	}
 
+	fileLayers := map[string]map[string]bool{}
+	for _, g := range groups {
+		if fileLayers[g.file] == nil {
+			fileLayers[g.file] = map[string]bool{}
+		}
+		for _, r := range g.refs {
+			fileLayers[g.file][pkgs[r.pkg].Layer] = true
+		}
+	}
+
 	remove := map[mergeRef]bool{}
 	replaceAt := map[string]mergeRef{} // file -> the replace fold's position
+	appendAt := map[string]mergeRef{}  // file -> the append fold's position
 	lastAppend := map[string]mergeRef{}
+	contributorsAt := map[mergeRef][]string{}
 	for _, key := range order {
 		g := groups[key]
+		if len(fileLayers[g.file]) < 2 {
+			continue
+		}
 		if g.mode == "append" && g.kind == "json-merge" {
 			lastAppend[g.file] = g.refs[len(g.refs)-1]
-		}
-		layers := map[string]bool{}
-		for _, r := range g.refs {
-			layers[pkgs[r.pkg].Layer] = true
-		}
-		if len(layers) < 2 {
-			continue
+			appendAt[g.file] = g.refs[0]
 		}
 		merged, contributors, overrides := foldGroup(pkgs, g)
 		first := g.refs[0]
@@ -278,14 +290,48 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		case "toml-merge":
 			pkgs[first.pkg].Steps[first.step] = manifest.TomlMergeStep{File: g.file, Merge: merged}
 		}
-		note := "(from " + strings.Join(contributors, ", ") + ")"
+		contributorsAt[first] = contributors
 		if len(overrides) > 0 {
-			note += "; " + strings.Join(overrides, "; ")
+			c.setNote(first, "; "+strings.Join(overrides, "; "))
 		}
-		c.setNote(first, note)
 		for _, r := range g.refs[1:] {
 			remove[r] = true
 		}
+	}
+
+	// An array the replace fold owns absorbs the append fold's elements for it.
+	for file, rAt := range replaceAt {
+		aAt, ok := appendAt[file]
+		if !ok {
+			continue
+		}
+		rs := pkgs[rAt.pkg].Steps[rAt.step].(manifest.JSONMergeStep)
+		as := pkgs[aAt.pkg].Steps[aAt.step].(manifest.JSONMergeStep)
+		rest, owned, moved := absorb(deepCopy(as.Merge), deepCopy(rs.Merge))
+		if !moved {
+			continue
+		}
+		rs.Merge = owned
+		pkgs[rAt.pkg].Steps[rAt.step] = rs
+		contributorsAt[rAt] = unionStrings(contributorsAt[rAt], contributorsAt[aAt])
+		if len(rest) == 0 {
+			remove[aAt] = true
+			delete(lastAppend, file)
+			for _, r := range groups["json-merge|"+file+"|append"].refs {
+				if r != aAt && less(rAt, r) {
+					lastAppend[file] = r
+				}
+			}
+		} else {
+			as.Merge = rest
+			pkgs[aAt.pkg].Steps[aAt.step] = as
+		}
+	}
+	for at, contributors := range contributorsAt {
+		if len(contributors) < 2 {
+			continue
+		}
+		c.setNote(at, "(from "+strings.Join(contributors, ", ")+")"+c.notes[at.pkg][at.step])
 	}
 
 	// Move a replace fold after the file's last append contributor.
@@ -296,6 +342,74 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		}
 	}
 	c.rebuild(remove, move)
+}
+
+// absorb moves every array in app that owned sets at the same path into owned
+// (as an ordered union), pruning emptied maps from app. It returns what is left
+// of app, the grown owned, and whether anything moved.
+func absorb(app, owned map[string]any) (map[string]any, map[string]any, bool) {
+	moved := false
+	for k, av := range app {
+		switch a := av.(type) {
+		case []any:
+			if o, ok := owned[k].([]any); ok {
+				owned[k] = combine(o, a, "", "", map[string]string{}, new([]string))
+				delete(app, k)
+				moved = true
+			}
+		case map[string]any:
+			if o, ok := owned[k].(map[string]any); ok {
+				rest, grown, m := absorb(a, o)
+				owned[k] = grown
+				if m {
+					moved = true
+				}
+				if len(rest) == 0 {
+					delete(app, k)
+				} else {
+					app[k] = rest
+				}
+			}
+		}
+	}
+	return app, owned, moved
+}
+
+func deepCopy(m map[string]any) map[string]any {
+	out, _ := copyValue(m).(map[string]any)
+	return out
+}
+
+func copyValue(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, e := range t {
+			out[k] = copyValue(e)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = copyValue(e)
+		}
+		return out
+	}
+	return v
+}
+
+func unionStrings(a, b []string) []string {
+	out := append([]string(nil), a...)
+	for _, s := range b {
+		found := false
+		for _, have := range out {
+			found = found || have == s
+		}
+		if !found {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func less(a, b mergeRef) bool {
