@@ -59,6 +59,11 @@ type PackagePlan struct {
 	Detail  string // skip reason when Skipped (e.g. "os != darwin")
 	Steps   []StepResult
 	Notes   []string
+	Layer   string // declaring layer, "" for the base
+	// Overrides lists the entries this package's layer took over from an
+	// earlier layer; always rendered, since they change what converges.
+	Overrides []string
+	Root      string // relative-path root, "" for the context's repo
 }
 
 // Plan is the ordered set of package plans.

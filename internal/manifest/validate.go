@@ -17,6 +17,7 @@ func Validate(m *Manifest) []Finding {
 	findings = append(findings, validateProfiles(m)...)
 	findings = append(findings, validateStepFields(m)...)
 	findings = append(findings, validateInstallSettingsPackages(m)...)
+	findings = append(findings, validateLayer(m)...)
 	return findings
 }
 

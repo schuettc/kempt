@@ -45,6 +45,10 @@ func Render(p *Plan, w io.Writer, verbose bool) {
 		if verbose {
 			header()
 		}
+		for _, o := range pp.Overrides {
+			header()
+			_, _ = fmt.Fprintf(w, "  ^ %s\n", o)
+		}
 		for _, sr := range pp.Steps {
 			switch sr.Delta.Op {
 			case OpNoop:
