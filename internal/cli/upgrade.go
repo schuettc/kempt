@@ -104,7 +104,7 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 				return fmt.Errorf("upgrade %s: %w", s.Tool, err)
 			}
 		} else {
-			if err := handlers.RollExtension(ctx, s.Ext); err != nil {
+			if err := handlers.RollExtensionTo(ctx, s.Ext, s.Target); err != nil {
 				return fmt.Errorf("upgrade %s: %w", s.Tool, err)
 			}
 		}

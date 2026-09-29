@@ -131,11 +131,14 @@ spec = 1
   pi = ["npm:pi-creel", "npm:pi-quiet@0.2.0"]
 `)
 	restore, fr := stubContextRuns(t, dir, nil, map[string]string{
-		"pi list":                   "  npm:pi-creel@0.1.0\n  npm:pi-quiet@0.2.0\n",
 		"npm view pi-creel version": "0.1.1\n",
-		"pi install npm:pi-creel":   "",
+		"pi update npm:pi-creel":    "",
 	}, nil)
 	defer restore()
+	fr.Sequences = map[string][]run.Response{"pi list": {
+		{Stdout: "  npm:pi-creel@0.1.0\n  npm:pi-quiet@0.2.0\n"},
+		{Stdout: "  npm:pi-creel@0.1.1\n  npm:pi-quiet@0.2.0\n"},
+	}}
 
 	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
 	if err != nil {
@@ -153,15 +156,47 @@ spec = 1
 	}
 	rolled := false
 	for _, c := range fr.Calls {
-		if c == "pi install npm:pi-creel" {
+		if c == "pi update npm:pi-creel" {
 			rolled = true
 		}
-		if c == "pi install npm:pi-quiet@0.2.0" {
+		if strings.Contains(c, "npm:pi-quiet") {
 			t.Errorf("pinned entry must not be rolled; calls=%v", fr.Calls)
 		}
 	}
 	if !rolled {
 		t.Errorf("rolling entry not rolled; calls=%v", fr.Calls)
+	}
+}
+
+// TestRollRollingReportsNoOpRollAsSkipped: a roll command that succeeds but
+// leaves the entry behind is reported as skipped with the versions, never as
+// "rolled". `update` once printed "rolled pi-hail to 0.7.0" while 0.1.1 stayed.
+func TestRollRollingReportsNoOpRollAsSkipped(t *testing.T) {
+	dir := writeTempManifest(t, `
+[kempt]
+spec = 1
+[packages.pi]
+  [[packages.pi.install]]
+  pi = ["npm:pi-hail"]
+`)
+	restore, _ := stubContextRuns(t, dir, nil, map[string]string{
+		"pi list":                  "  npm:pi-hail@0.1.1\n",
+		"npm view pi-hail version": "0.7.0\n",
+		"pi update npm:pi-hail":    "",
+	}, nil)
+	defer restore()
+
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if err := rollRolling(ctx, selected, &out); err != nil {
+		t.Fatal(err)
+	}
+	want := "skipping pi-hail: still at 0.1.1 after the roll (latest 0.7.0)\nrolling: 1 checked, 0 rolled, 1 skipped\n"
+	if got := out.String(); got != want {
+		t.Errorf("output = %q; want %q", got, want)
 	}
 }
 

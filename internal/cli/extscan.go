@@ -71,7 +71,7 @@ func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writ
 		if s.Kind == "download" {
 			aerr = h.Apply(ctx, manifest.DownloadStep{Site: s.Site, Tool: s.Tool, Version: s.Target, Bin: s.Bin})
 		} else {
-			aerr = handlers.RollExtension(ctx, s.Ext)
+			aerr = handlers.RollExtensionTo(ctx, s.Ext, s.Target)
 		}
 		if aerr != nil {
 			_, _ = fmt.Fprintf(out, "skipping %s: %v\n", s.Tool, aerr)

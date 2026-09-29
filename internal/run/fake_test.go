@@ -102,3 +102,20 @@ func TestFakeRunnerScripted(t *testing.T) {
 		}
 	}
 }
+
+// TestFakeRunnerSequence: a Sequences entry answers successive calls in order,
+// repeats its last response once exhausted, and takes precedence over
+// Responses, so a test can model state that changes across a command (an
+// inventory read before and after an install).
+func TestFakeRunnerSequence(t *testing.T) {
+	f := &FakeRunner{
+		Responses: map[string]Response{"pi list": {Stdout: "static"}},
+		Sequences: map[string][]Response{"pi list": {{Stdout: "before"}, {Stdout: "after"}}},
+	}
+	for i, want := range []string{"before", "after", "after"} {
+		got, err := f.Run("pi", "list")
+		if err != nil || got != want {
+			t.Fatalf("call %d = %q, %v; want %q, nil", i, got, err, want)
+		}
+	}
+}
