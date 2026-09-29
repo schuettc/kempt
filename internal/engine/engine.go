@@ -22,7 +22,7 @@ func BuildPlan(ctx *machine.Context, pkgs []*manifest.Package) (*Plan, error) {
 	p := &Plan{}
 	for pi, pkg := range c.pkgs {
 		pp := PackagePlan{Name: pkg.Name, Notes: pkg.Notes, Layer: pkg.Layer, Root: pkg.Root, Overrides: c.overrides[pi]}
-		pctx := ctxFor(ctx, pkg.Root)
+		pctx := ContextFor(ctx, pkg.Root)
 		if reason, skip := skipReason(ctx, pkg.Only); skip {
 			pp.Skipped = true
 			pp.Detail = reason
@@ -59,11 +59,11 @@ func BuildPlan(ctx *machine.Context, pkgs []*manifest.Package) (*Plan, error) {
 	return p, nil
 }
 
-// ctxFor returns the context a package's steps run in: ctx itself for the
+// ContextFor returns the context a package's steps run in: ctx itself for the
 // base, or a copy whose RepoDir is the package's root, so relative paths
 // resolve against the layer that declared them. The copy shares ctx's runner
 // and inventory cache.
-func ctxFor(ctx *machine.Context, root string) *machine.Context {
+func ContextFor(ctx *machine.Context, root string) *machine.Context {
 	if root == "" || root == ctx.RepoDir {
 		return ctx
 	}
@@ -83,7 +83,7 @@ func Execute(ctx *machine.Context, p *Plan, out io.Writer) (failed int) {
 		if pp.Skipped {
 			continue
 		}
-		pctx := ctxFor(ctx, pp.Root)
+		pctx := ContextFor(ctx, pp.Root)
 		for j := range pp.Steps {
 			sr := &pp.Steps[j]
 			if sr.Delta.Op != OpChange {

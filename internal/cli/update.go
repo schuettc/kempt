@@ -13,6 +13,7 @@ import (
 	"github.com/schuettc/kempt/internal/engine"
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/gitrepo"
+	"github.com/schuettc/kempt/internal/layers"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 	"github.com/schuettc/kempt/internal/state"
@@ -142,6 +143,16 @@ func refreshAndSelfUpdate(app *tools.App, ctx *machine.Context, st *state.State,
 		}
 	} else if err := gitrepo.Pull(ctx.Runner, st.RepoDir); err != nil {
 		return false, fmt.Errorf("git pull failed: %w", err)
+	}
+	// Then each git layer. A project checkout is never pulled: it is yours. A
+	// layer that fails to pull is converged from what is already on disk.
+	for _, l := range st.Layers {
+		if l.Source.Kind != "git" || l.Project != "" {
+			continue
+		}
+		if err := gitrepo.Pull(ctx.Runner, layers.ExpandHome(l.Source.Dir, ctx.Home)); err != nil {
+			_, _ = fmt.Fprintf(out, "could not pull layer %s: %v\n", l.Name, err)
+		}
 	}
 
 	// 2. Self-update the binary via the /dl download contract. A non-writable

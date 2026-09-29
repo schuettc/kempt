@@ -157,6 +157,7 @@ func executeAndVerify(ctx *machine.Context, plan *engine.Plan, out io.Writer) (i
 	applied := 0
 	for i := range plan.Packages {
 		pp := &plan.Packages[i]
+		pctx := engine.ContextFor(ctx, pp.Root)
 		pkgChanged := false
 		for j := range pp.Steps {
 			if pp.Steps[j].Applied {
@@ -172,7 +173,7 @@ func executeAndVerify(ctx *machine.Context, plan *engine.Plan, out io.Writer) (i
 				if !ok {
 					continue
 				}
-				delta, err := h.Inspect(ctx, sr.Step)
+				delta, err := h.Inspect(pctx, sr.Step)
 				if err != nil {
 					_, _ = fmt.Fprintf(out, "! %s: re-inspect failed: %v\n", pp.Name, err)
 					failed++
@@ -190,7 +191,7 @@ func executeAndVerify(ctx *machine.Context, plan *engine.Plan, out io.Writer) (i
 			// stale OpBlocked is a false positive — re-inspect it against post-apply
 			// state so the run's blocked count reflects reality.
 			if ok && pkgChanged && sr.Delta.Op == engine.OpBlocked && sr.Step.Kind() == "verify" {
-				if delta, err := h.Inspect(ctx, sr.Step); err == nil {
+				if delta, err := h.Inspect(pctx, sr.Step); err == nil {
 					sr.Delta = delta
 				}
 			}

@@ -165,7 +165,7 @@ type claim struct {
 func resolveExclusive(ctx *machine.Context, pkgs []*manifest.Package) error {
 	claims := map[string]claim{}
 	for pi, p := range pkgs {
-		pctx := ctxFor(ctx, p.Root)
+		pctx := ContextFor(ctx, p.Root)
 		var kept []manifest.Step
 		for _, s := range p.Steps {
 			key, norm, ok := exclusiveKey(pctx, s)
@@ -208,7 +208,7 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 	groups := map[string]*mergeGroup{}
 	var order []string
 	for pi, p := range pkgs {
-		pctx := ctxFor(ctx, p.Root)
+		pctx := ContextFor(ctx, p.Root)
 		for si, s := range p.Steps {
 			var kind, file, mode string
 			switch st := s.(type) {
