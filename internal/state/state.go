@@ -20,6 +20,32 @@ type State struct {
 	Profile        string   `json:"profile,omitempty"`
 	Packages       []string `json:"packages"`
 	AutoApplyFiles bool     `json:"auto_apply_files"`
+	// Layers are the machine's chosen layers, in apply order: user layers,
+	// then project layers, each in the order added.
+	Layers []Layer `json:"layers,omitempty"`
+}
+
+// Layer is one layer in the machine's selection.
+type Layer struct {
+	Name     string      `json:"name"`
+	Scope    string      `json:"scope"` // "user" | "project"
+	Source   LayerSource `json:"source"`
+	Packages []string    `json:"packages"`
+	// Project is the checkout a layer added with -project belongs to. Such a
+	// layer is held when its file no longer matches Approved (sha256 of the
+	// file as last applied).
+	Project  string `json:"project,omitempty"`
+	Approved string `json:"approved,omitempty"`
+}
+
+// LayerSource locates a layer file: File (default kempt.toml) inside Dir. A
+// "git" source is a checkout of URL that update pulls; a "path" source is only
+// read.
+type LayerSource struct {
+	Kind string `json:"kind"` // "git" | "path"
+	URL  string `json:"url,omitempty"`
+	Dir  string `json:"dir"`
+	File string `json:"file,omitempty"`
 }
 
 // Status holds the cached result of the last refresh check.

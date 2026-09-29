@@ -15,13 +15,27 @@ import (
 
 func init() {
 	Register(Command{Name: "adopt", Summary: "add a package (and its needs) to the saved selection",
-		Synopsis: "adopt <package>",
+		Synopsis: "adopt [-layer <name>] <package>",
 		Help:     "Adds a package and any packages it needs to the saved selection. Run apply to converge.",
 		Run:      runAdopt})
 	Register(Command{Name: "drop", Summary: "remove a package from the saved selection",
-		Synopsis: "drop <package>",
+		Synopsis: "drop [-layer <name>] <package>",
 		Help:     "Removes a package from the saved selection (refused if another selected package needs it).",
 		Run:      runDrop})
+}
+
+// parseLayerPositional parses `[-layer <name>] <pkg>` for adopt and drop.
+func parseLayerPositional(name string, args []string, out io.Writer) (pkg, layer string, err error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	l := fs.String("layer", "", "edit this layer's selection instead of the base's")
+	pos, err := parseInterleaved(fs, args, out)
+	if err != nil {
+		return "", "", err
+	}
+	if len(pos) != 1 {
+		return "", "", UsageError{Msg: fmt.Sprintf("usage: kempt %s [-layer <name>] <pkg>", name)}
+	}
+	return pos[0], *l, nil
 }
 
 // parseOnePositional parses args with an empty flag set (so -h is handled) and
@@ -63,9 +77,12 @@ func loadStateManifest() (*state.State, *manifest.Manifest, error) {
 }
 
 func runAdopt(args []string, out, errw io.Writer) error {
-	pkg, err := parseOnePositional("adopt", args, out)
+	pkg, layer, err := parseLayerPositional("adopt", args, out)
 	if err != nil {
 		return err
+	}
+	if layer != "" {
+		return adoptInLayer(layer, pkg, out)
 	}
 	st, m, err := loadStateManifest()
 	if err != nil {
@@ -120,9 +137,12 @@ func runAdopt(args []string, out, errw io.Writer) error {
 }
 
 func runDrop(args []string, out, errw io.Writer) error {
-	pkg, err := parseOnePositional("drop", args, out)
+	pkg, layer, err := parseLayerPositional("drop", args, out)
 	if err != nil {
 		return err
+	}
+	if layer != "" {
+		return dropInLayer(layer, pkg, out)
 	}
 	st, m, err := loadStateManifest()
 	if err != nil {

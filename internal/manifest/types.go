@@ -11,7 +11,10 @@ const (
 )
 
 type Manifest struct {
-	Spec     int
+	Spec int
+	// Layer is the [kempt] layer scope: "" for a base manifest, "user" or
+	// "project" for a layer (see docs/superpowers/specs/2026-09-29-layers-design.md).
+	Layer    string
 	Packages map[string]*Package
 	Profiles map[string]*Profile
 	Doctor   *DoctorConfig
@@ -33,6 +36,11 @@ type Package struct {
 	Only        *Only
 	Steps       []Step // document order
 	Notes       []string
+	// Layer is the layer that declared this package ("" for the base) and
+	// Root the directory its relative paths resolve against ("" for the
+	// base: the context's repo). Both are set by layer composition.
+	Layer string
+	Root  string
 }
 
 type Profile struct {

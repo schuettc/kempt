@@ -15,16 +15,21 @@ import (
 // detail (handlers are added incrementally during phase 1b); this is not an
 // error so plan stays usable mid-phase.
 func BuildPlan(ctx *machine.Context, pkgs []*manifest.Package) (*Plan, error) {
+	c, err := compose(ctx, pkgs)
+	if err != nil {
+		return nil, err
+	}
 	p := &Plan{}
-	for _, pkg := range pkgs {
-		pp := PackagePlan{Name: pkg.Name, Notes: pkg.Notes}
+	for pi, pkg := range c.pkgs {
+		pp := PackagePlan{Name: pkg.Name, Notes: pkg.Notes, Layer: pkg.Layer, Root: pkg.Root, Overrides: c.overrides[pi]}
+		pctx := ContextFor(ctx, pkg.Root)
 		if reason, skip := skipReason(ctx, pkg.Only); skip {
 			pp.Skipped = true
 			pp.Detail = reason
 			p.Packages = append(p.Packages, pp)
 			continue
 		}
-		for _, step := range pkg.Steps {
+		for si, step := range pkg.Steps {
 			if reason, skip := skipReason(ctx, stepOnly(step)); skip {
 				pp.Steps = append(pp.Steps, StepResult{
 					Step:  step,
@@ -40,15 +45,31 @@ func BuildPlan(ctx *machine.Context, pkgs []*manifest.Package) (*Plan, error) {
 				})
 				continue
 			}
-			delta, err := h.Inspect(ctx, step)
+			delta, err := h.Inspect(pctx, step)
 			if err != nil {
 				return nil, fmt.Errorf("inspect %s in %s: %w", step.Kind(), pkg.Name, err)
+			}
+			if note := c.notes[pi][si]; note != "" {
+				delta.Detail += " " + note
 			}
 			pp.Steps = append(pp.Steps, StepResult{Step: step, Delta: delta})
 		}
 		p.Packages = append(p.Packages, pp)
 	}
 	return p, nil
+}
+
+// ContextFor returns the context a package's steps run in: ctx itself for the
+// base, or a copy whose RepoDir is the package's root, so relative paths
+// resolve against the layer that declared them. The copy shares ctx's runner
+// and inventory cache.
+func ContextFor(ctx *machine.Context, root string) *machine.Context {
+	if root == "" || root == ctx.RepoDir {
+		return ctx
+	}
+	c := *ctx
+	c.RepoDir = root
+	return &c
 }
 
 // Execute applies every OpChange step in plan order. On success it marks the
@@ -62,6 +83,7 @@ func Execute(ctx *machine.Context, p *Plan, out io.Writer) (failed int) {
 		if pp.Skipped {
 			continue
 		}
+		pctx := ContextFor(ctx, pp.Root)
 		for j := range pp.Steps {
 			sr := &pp.Steps[j]
 			if sr.Delta.Op != OpChange {
@@ -71,7 +93,7 @@ func Execute(ctx *machine.Context, p *Plan, out io.Writer) (failed int) {
 			if !ok {
 				continue
 			}
-			if err := h.Apply(ctx, sr.Step); err != nil {
+			if err := h.Apply(pctx, sr.Step); err != nil {
 				sr.Err = err
 				_, _ = fmt.Fprintf(out, "! %s: %s: %v\n", pp.Name, sr.Delta.Detail, err)
 				failed++
@@ -113,6 +135,8 @@ func FilterByClass(p *Plan, class manifest.Class) *Plan {
 			Skipped: pp.Skipped,
 			Detail:  pp.Detail,
 			Steps:   steps,
+			Layer:   pp.Layer,
+			Root:    pp.Root,
 		})
 	}
 	return out

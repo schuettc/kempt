@@ -149,6 +149,36 @@ conditionals. The first-run picker preseeds from the chosen profile. There is no
 hostname/env conditional language in v1 — `only = { os, arch }` is the only
 conditional.
 
+## Layers
+
+A machine can apply **layers** on top of its base manifest: work, personal,
+machine-only, or a project's own configuration. Which layers a machine uses is
+its saved state (`kempt layer add`), never a conditional in any manifest, and
+the base manifest never names them. Full design:
+`docs/superpowers/specs/2026-09-29-layers-design.md`.
+
+- A layer is a `kempt.toml` whose `[kempt]` table sets `layer = "user"` (it
+  configures the user's machine) or `layer = "project"` (it configures one
+  checkout: file primitives only, relative targets inside the checkout).
+- A layer's source is `git` (a checkout `update` pulls) or `path` (a
+  directory on this machine that is only read). A project checkout is never
+  pulled.
+- Layers compose with the base into one plan, in order: base, user layers,
+  project layers. A layer's packages are namespaced `<layer>/<pkg>`; relative
+  paths resolve against the layer file's directory (a project layer: the
+  checkout).
+- Across layers, installs combine (a later layer's pin of an entry wins, and
+  the plan says so); `json-merge` / `toml-merge` steps into one file fold into
+  one step, so a `replace` array is the ordered union of what every layer
+  declares (a layer's `append` to that array joins the union); and two layers claiming one symlink, clone, binary or service
+  label is a plan error unless the definitions are identical.
+- A layer added with `-project` is held, not applied, when its file changes,
+  until `kempt layer apply <name>`.
+- A layer whose source is missing is skipped with a message; the rest still
+  converges.
+- Layers apply to the saved selection only: a command given `-manifest`,
+  `-profile` or `-packages` runs on exactly what it names.
+
 ## Versioning
 
 The manifest declares `spec = 1`. Parsers reject spec values they don't know:

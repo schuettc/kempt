@@ -88,7 +88,7 @@ func runRefresh(args []string, out, errw io.Writer) error {
 		return fmt.Errorf("manifest has findings; run kempt lint")
 	}
 
-	selected, err := engine.Select(m, "", st.Packages)
+	selected, err := selectWithLayers(ctx, m, "", st.Packages, st, savedSelection(existed, *v.manifest, "", ""), out, errw)
 	if err != nil {
 		return UsageError{Msg: err.Error()}
 	}

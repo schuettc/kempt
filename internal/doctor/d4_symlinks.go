@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/schuettc/kempt/internal/engine"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
 )
@@ -11,21 +12,22 @@ import (
 func CheckSymlinks(ctx *machine.Context, pkgs []*manifest.Package) []Finding {
 	var out []Finding
 	for _, pkg := range pkgs {
+		pctx := engine.ContextFor(ctx, pkg.Root)
 		for _, step := range pkg.Steps {
 			sl, ok := step.(manifest.SymlinkStep)
 			if !ok {
 				continue
 			}
-			to := ctx.Expand(sl.To)
+			to := pctx.Expand(sl.To)
 			fi, err := os.Lstat(to)
 			if err != nil {
 				continue // absent → plan will create it
 			}
 			// Match the symlink handler's own target basis exactly: it links to
-			// ctx.Expand(From), which resolves ~, absolute, and repo-relative From
+			// pctx.Expand(From), which resolves ~, absolute, and repo-relative From
 			// alike. filepath.Join(RepoDir, From) would only agree for repo-relative
 			// From and would false-positive on a ~/ or absolute From.
-			want := ctx.Expand(sl.From)
+			want := pctx.Expand(sl.From)
 			if fi.Mode()&os.ModeSymlink == 0 {
 				out = append(out, Finding{
 					Check: "symlink", Package: pkg.Name, Severity: Warn,

@@ -81,7 +81,7 @@ func runDoctor(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	selected, err := engine.Select(m, profile, packages)
+	selected, err := selectWithLayers(ctx, m, profile, packages, st, savedSelection(existed, *v.manifest, *v.profile, *v.packages), out, errw)
 	if err != nil {
 		return UsageError{Msg: err.Error()}
 	}
@@ -89,6 +89,12 @@ func runDoctor(args []string, out, errw io.Writer) error {
 	var cfg manifest.DoctorConfig
 	if m.Doctor != nil {
 		cfg = *m.Doctor
+	}
+	// Doctor inspects steps directly, so it must see them composed: a layer's
+	// entry in a folded replace array is declared, not drift.
+	selected, err = engine.Compose(ctx, selected)
+	if err != nil {
+		return err
 	}
 	report := doctor.Run(ctx, selected, cfg)
 	if *v.json {

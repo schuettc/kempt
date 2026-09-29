@@ -103,3 +103,22 @@ func TestPackagePropertiesExactSet(t *testing.T) {
 		}
 	}
 }
+
+// TestKemptTableHasLayer: the [kempt] table accepts the layer scope the parser
+// reads, with the parser's two values, so an editor using the schema does not
+// flag a layer file.
+func TestKemptTableHasLayer(t *testing.T) {
+	var m map[string]any
+	if err := json.Unmarshal(JSON(), &m); err != nil {
+		t.Fatal(err)
+	}
+	kempt := m["properties"].(map[string]any)["kempt"].(map[string]any)["properties"].(map[string]any)
+	layer, ok := kempt["layer"].(map[string]any)
+	if !ok {
+		t.Fatal("[kempt] schema has no layer property")
+	}
+	enum, _ := layer["enum"].([]any)
+	if len(enum) != 2 || enum[0] != "user" || enum[1] != "project" {
+		t.Errorf("layer enum = %v; want [user project]", enum)
+	}
+}

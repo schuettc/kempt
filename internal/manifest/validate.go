@@ -17,6 +17,7 @@ func Validate(m *Manifest) []Finding {
 	findings = append(findings, validateProfiles(m)...)
 	findings = append(findings, validateStepFields(m)...)
 	findings = append(findings, validateInstallSettingsPackages(m)...)
+	findings = append(findings, validateLayer(m)...)
 	return findings
 }
 
@@ -40,8 +41,13 @@ func validateSpec(m *Manifest) []Finding {
 	return nil
 }
 
-// Rule 2: every needs entry names an existing package.
+// Rule 2: every needs entry names an existing package. A layer's needs may name
+// the base's or an earlier layer's packages, which only composition can see,
+// so a layer file is checked there instead.
 func validateNeeds(m *Manifest) []Finding {
+	if m.Layer != "" {
+		return nil
+	}
 	var findings []Finding
 	for _, name := range sortedPackageNames(m) {
 		pkg := m.Packages[name]

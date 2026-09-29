@@ -6,7 +6,8 @@ import (
 
 type rawManifest struct {
 	Kempt struct {
-		Spec int `toml:"spec"`
+		Spec  int    `toml:"spec"`
+		Layer string `toml:"layer"`
 	} `toml:"kempt"`
 	Packages map[string]rawPackage `toml:"packages"`
 	Profiles map[string]rawProfile `toml:"profiles"`
@@ -70,6 +71,7 @@ func Parse(src []byte) (*Manifest, []Finding) {
 	}
 	m := &Manifest{
 		Spec:     raw.Kempt.Spec,
+		Layer:    raw.Kempt.Layer,
 		Packages: map[string]*Package{},
 		Profiles: map[string]*Profile{},
 		Doctor:   raw.Doctor,

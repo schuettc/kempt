@@ -74,7 +74,7 @@ func runVerify(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	selected, err := engine.Select(m, profile, packages)
+	selected, err := selectWithLayers(ctx, m, profile, packages, st, savedSelection(existed, *v.manifest, *v.profile, *v.packages), out, errw)
 	if err != nil {
 		return UsageError{Msg: err.Error()}
 	}
@@ -86,6 +86,7 @@ func runVerify(args []string, out, errw io.Writer) error {
 
 	var passed, failed, total int
 	for _, pkg := range selected {
+		pctx := engine.ContextFor(ctx, pkg.Root)
 		// Package-level only filtering: skip if the machine context doesn't match.
 		if _, skip := engine.OnlySkip(ctx, pkg.Only); skip {
 			continue
@@ -99,7 +100,7 @@ func runVerify(args []string, out, errw io.Writer) error {
 				continue
 			}
 			total++
-			delta, err := h.Inspect(ctx, step)
+			delta, err := h.Inspect(pctx, step)
 			if err != nil {
 				return err
 			}

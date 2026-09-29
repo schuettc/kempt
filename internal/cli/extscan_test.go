@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -22,7 +23,7 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", io.Discard, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +197,7 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", io.Discard, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

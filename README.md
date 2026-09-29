@@ -63,6 +63,13 @@ repeating `-manifest`/`-profile`:
   asks about). Prompts unless `-yes`. This, `outdated`, and the `update`
   roll step are the only paths that reach the network for versions; `plan`/`apply`
   never do.
+- **`kempt layer add <name> <git-url | path>`** / **`kempt layer add -project <dir>`**
+  - apply a layer on top of the base on this machine: a work or personal
+  manifest, one that never leaves the machine, or a project's own
+  `.kempt/kempt.toml`. `update` then converges base and layers as one plan.
+  `layer list`, `layer remove <name>` (uninstalls nothing), and `layer apply <name>`
+  (re-applies, and accepts a changed project layer, which `update` otherwise
+  holds). `adopt`/`drop -layer <name>` edit a layer's packages.
 - **`kempt doctor`** — diagnose machine-vs-manifest drift (read-only). Reports
   drift the `plan`/`verify` commands miss: undeclared live array entries,
   duplicate package identities, orphaned installs, broken/foreign managed
