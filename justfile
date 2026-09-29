@@ -9,6 +9,10 @@ default: verify
 
 verify: prepare gate verify-extra
 
+# Everything: verify plus this tool's slow checks (browser, containers), which
+# CI runs as their own required jobs.
+verify-all: verify verify-slow
+
 # The family Go gate: gofmt, vet, golangci-lint (family config), race tests,
 # cross-build. Fetched once per tools-actions version into ~/.cache.
 gate:
@@ -38,6 +42,9 @@ hooks:
 # Files the gate needs that are not committed (built before the gate, locally
 # and in CI). kempt has none.
 prepare:
+
+# Slow checks (a browser, a container) that CI runs as their own jobs. kempt has none.
+verify-slow:
 
 # Tool-specific checks beyond the gate (CI runs this too). kempt has none.
 verify-extra:
