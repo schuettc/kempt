@@ -215,8 +215,8 @@ type mergeGroup struct {
 // single step each, at the first contributor's position. When such a file has
 // both an append and a replace fold, an array the replace fold owns absorbs the
 // append fold's elements for it (so a layer appending to a base's replace list
-// keeps its entry and converging is idempotent), and the replace fold moves
-// after the file's last append contributor. Files one layer merges alone keep
+// keeps its entry and converging is idempotent), and when anything is left in
+// the append fold the replace fold moves after it. Files one layer merges alone keep
 // their steps exactly as written.
 func (c *composed) foldMerges(ctx *machine.Context) {
 	pkgs := c.pkgs
@@ -264,7 +264,6 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 	remove := map[mergeRef]bool{}
 	replaceAt := map[string]mergeRef{} // file -> the replace fold's position
 	appendAt := map[string]mergeRef{}  // file -> the append fold's position
-	lastAppend := map[string]mergeRef{}
 	contributorsAt := map[mergeRef][]string{}
 	for _, key := range order {
 		g := groups[key]
@@ -272,7 +271,6 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 			continue
 		}
 		if g.mode == "append" && g.kind == "json-merge" {
-			lastAppend[g.file] = g.refs[len(g.refs)-1]
 			appendAt[g.file] = g.refs[0]
 		}
 		merged, contributors, overrides := foldGroup(pkgs, g)
@@ -316,12 +314,7 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		contributorsAt[rAt] = unionStrings(contributorsAt[rAt], contributorsAt[aAt])
 		if len(rest) == 0 {
 			remove[aAt] = true
-			delete(lastAppend, file)
-			for _, r := range groups["json-merge|"+file+"|append"].refs {
-				if r != aAt && less(rAt, r) {
-					lastAppend[file] = r
-				}
-			}
+			delete(appendAt, file)
 		} else {
 			as.Merge = rest
 			pkgs[aAt.pkg].Steps[aAt.step] = as
@@ -334,10 +327,11 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		c.setNote(at, "(from "+strings.Join(contributors, ", ")+")"+c.notes[at.pkg][at.step])
 	}
 
-	// Move a replace fold after the file's last append contributor.
+	// A replace fold must apply after the file's append fold, which now holds
+	// every append contribution at the first contributor's position.
 	move := map[mergeRef]mergeRef{} // replace fold -> insert after
 	for file, at := range replaceAt {
-		if after, ok := lastAppend[file]; ok && less(at, after) {
+		if after, ok := appendAt[file]; ok && less(at, after) {
 			move[at] = after
 		}
 	}

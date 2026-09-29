@@ -166,3 +166,12 @@ func mustHash(t *testing.T, p string) string {
 	}
 	return h
 }
+
+// A project-added layer with no recorded approval was never accepted: held.
+func TestLoadHoldsUnapprovedProjectLayer(t *testing.T) {
+	dir := writeLayer(t, "[kempt]\nspec = 1\nlayer = \"project\"\n[packages.dev]\n")
+	res := Load([]state.Layer{{Name: "p", Scope: "project", Project: dir, Source: state.LayerSource{Kind: "path", Dir: dir}}}, "")
+	if len(res.Held) != 1 || len(res.Loaded) != 0 {
+		t.Errorf("unapproved project layer loaded: %+v", res)
+	}
+}

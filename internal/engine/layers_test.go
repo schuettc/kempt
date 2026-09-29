@@ -272,3 +272,28 @@ func TestLaterLayerPinOverridesEarlier(t *testing.T) {
 		t.Errorf("override not reported:\n%s", notes.String())
 	}
 }
+
+// Two layers appending to a list the base owns with replace: both entries join
+// the union, and the folded step stays in the base's package (it is never
+// moved to where a folded-away step used to be).
+func TestFoldTwoAppendingLayersStayInBase(t *testing.T) {
+	plan, home := applyPkgs(t, []*manifest.Package{
+		{Name: "pi", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/m.json", Arrays: "replace",
+			Merge: map[string]any{"list": []any{"r1"}}}}},
+		{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/m.json",
+			Merge: map[string]any{"list": []any{"w1"}}}}},
+		{Name: "home/p", Layer: "home", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/m.json",
+			Merge: map[string]any{"list": []any{"h1"}}}}},
+	})
+	if got := readJSON(t, filepath.Join(home, "m.json"))["list"]; fmt.Sprint(got) != "[r1 w1 h1]" {
+		t.Errorf("list = %v", got)
+	}
+	if n := len(plan.Packages[0].Steps); n != 1 {
+		t.Errorf("base package has %d steps; the folded replace step belongs there", n)
+	}
+	for _, pp := range plan.Packages[1:] {
+		if len(pp.Steps) != 0 {
+			t.Errorf("%s holds %d steps; its merge was folded into the base's", pp.Name, len(pp.Steps))
+		}
+	}
+}

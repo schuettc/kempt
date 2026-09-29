@@ -93,7 +93,8 @@ func Load(chosen []state.Layer, home string) Result {
 		}
 		sum := sha256.Sum256(src)
 		hash := "sha256:" + hex.EncodeToString(sum[:])
-		if l.Project != "" && l.Approved != "" && hash != l.Approved {
+		// An empty Approved means the file was never accepted: held, too.
+		if l.Project != "" && hash != l.Approved {
 			res.Held = append(res.Held, Status{l.Name, "layer changed since you applied it"})
 			continue
 		}
