@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -49,7 +50,9 @@ func setupUpdate(t *testing.T, r *run.FakeRunner, rel release.Releases) (home, r
 		t.Fatal(err)
 	}
 
-	origLoad, origCtx, origSelf := loadState, newContext, selfUpdate
+	origLoad, origCtx, origSelf, origReexec := loadState, newContext, selfUpdate, reexecUpdate
+	// Default: a re-exec "succeeds" (a real exec never returns) and does nothing.
+	reexecUpdate = func() error { return nil }
 	loadState = func() (*state.State, bool, error) { return stateStore.Load() }
 	newContext = func(repoDir string) (*machine.Context, error) {
 		return &machine.Context{
@@ -67,7 +70,7 @@ func setupUpdate(t *testing.T, r *run.FakeRunner, rel release.Releases) (home, r
 		return false, "dev", nil
 	}
 	t.Cleanup(func() {
-		loadState, newContext, selfUpdate = origLoad, origCtx, origSelf
+		loadState, newContext, selfUpdate, reexecUpdate = origLoad, origCtx, origSelf, origReexec
 	})
 	return home, repo
 }
@@ -93,6 +96,91 @@ func TestUpdateCurrentBinaryConverges(t *testing.T) {
 		t.Fatalf("symlink not created: %v", err)
 	} else if want := filepath.Join(repo, "src", "rc"); target != want {
 		t.Fatalf("link target = %q, want %q", target, want)
+	}
+}
+
+// TestUpdateReexecsAfterSelfUpdate: once update has replaced its own binary,
+// it hands off to the new one instead of rolling and converging with the old
+// code. kempt 0.5.8 -> 0.5.9 printed 0.5.8's "rolled" lines because the roll
+// ran in the process that had just been replaced.
+func TestUpdateReexecsAfterSelfUpdate(t *testing.T) {
+	r := &run.FakeRunner{}
+	home, repo := setupUpdate(t, r, release.FakeReleases{})
+	r.Responses = map[string]run.Response{
+		"git -C " + repo + " pull --rebase --autostash": {Stdout: ""},
+	}
+	selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error) {
+		return true, "0.5.10", nil
+	}
+	reexecs := 0
+	reexecUpdate = func() error { reexecs++; return nil }
+
+	var out, errw bytes.Buffer
+	if code := Dispatch([]string{"update"}, &out, &errw); code != 0 {
+		t.Fatalf("exit = %d; out=%s err=%s", code, out.String(), errw.String())
+	}
+	if reexecs != 1 {
+		t.Fatalf("reexecs = %d, want 1", reexecs)
+	}
+	if !strings.Contains(out.String(), "kempt updated dev -> 0.5.10\n") {
+		t.Errorf("missing binary standing:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "rolling:") || strings.Contains(out.String(), "applied") {
+		t.Errorf("the replaced process rolled or converged:\n%s", out.String())
+	}
+	if _, err := os.Lstat(filepath.Join(home, ".rc")); err == nil {
+		t.Error("the replaced process converged files")
+	}
+}
+
+// TestUpdateAfterReexecSkipsPullAndSelfUpdate: the re-exec'd process only rolls
+// and converges; the pull and the self-update already happened.
+func TestUpdateAfterReexecSkipsPullAndSelfUpdate(t *testing.T) {
+	r := &run.FakeRunner{}
+	home, _ := setupUpdate(t, r, release.FakeReleases{})
+	t.Setenv(updateReexecEnv, "1")
+	selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error) {
+		t.Error("self-update ran again after the re-exec")
+		return false, "", nil
+	}
+	reexecUpdate = func() error { t.Error("re-exec'd again"); return nil }
+
+	var out, errw bytes.Buffer
+	if code := Dispatch([]string{"update"}, &out, &errw); code != 0 {
+		t.Fatalf("exit = %d; out=%s err=%s", code, out.String(), errw.String())
+	}
+	for _, c := range r.Calls {
+		if strings.Contains(c, "pull") {
+			t.Errorf("pulled again after the re-exec: %q", c)
+		}
+	}
+	if _, err := os.Readlink(filepath.Join(home, ".rc")); err != nil {
+		t.Errorf("did not converge after the re-exec: %v", err)
+	}
+}
+
+// TestUpdateContinuesWhenReexecFails: a failed hand-off warns and carries on in
+// the current process (the pre-0.5.10 behaviour) rather than aborting.
+func TestUpdateContinuesWhenReexecFails(t *testing.T) {
+	r := &run.FakeRunner{}
+	home, repo := setupUpdate(t, r, release.FakeReleases{})
+	r.Responses = map[string]run.Response{
+		"git -C " + repo + " pull --rebase --autostash": {Stdout: ""},
+	}
+	selfUpdate = func(app *tools.App, out, errw io.Writer) (bool, string, error) {
+		return true, "0.5.10", nil
+	}
+	reexecUpdate = func() error { return errors.New("exec format error") }
+
+	var out, errw bytes.Buffer
+	if code := Dispatch([]string{"update"}, &out, &errw); code != 0 {
+		t.Fatalf("exit = %d; out=%s err=%s", code, out.String(), errw.String())
+	}
+	if !strings.Contains(out.String(), "could not restart into kempt 0.5.10 (exec format error); continuing with this binary") {
+		t.Errorf("missing re-exec warning:\n%s", out.String())
+	}
+	if _, err := os.Readlink(filepath.Join(home, ".rc")); err != nil {
+		t.Errorf("did not converge after a failed re-exec: %v", err)
 	}
 }
 
