@@ -48,7 +48,7 @@ func runOutdated(args []string, out, errw io.Writer) error {
 		return err
 	}
 
-	selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, errw)
+	selected, ctx, err := loadSelectedContext(*v.manifest, *v.profile, *v.packages, out, errw)
 	if err != nil {
 		return err
 	}

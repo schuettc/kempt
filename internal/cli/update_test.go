@@ -228,7 +228,7 @@ spec = 1
 		{Stdout: "  npm:pi-creel@0.1.1\n  npm:pi-quiet@0.2.0\n"},
 	}}
 
-	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", io.Discard, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", io.Discard, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ spec = 1
 		{Stdout: "  npm:pi-mcp-adapter@2.38.0\n  npm:pi-creel@0.2.0\n"},
 	}}
 
-	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", io.Discard, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ spec = 1
 	}, nil)
 	defer restore()
 
-	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", nil)
+	selected, ctx, err := loadSelectedContext(dir+"/kempt.toml", "", "", io.Discard, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/schuettc/kempt/internal/engine"
 	"github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
@@ -13,7 +12,7 @@ import (
 
 // loadSelectedContext reproduces the manifest-read + parse + validate +
 // newContext + engine.Select sequence shared by plan, outdated, and upgrade.
-func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io.Writer) ([]*manifest.Package, *machine.Context, error) {
+func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, out, errw io.Writer) ([]*manifest.Package, *machine.Context, error) {
 	st, existed, err := loadState()
 	if err != nil {
 		return nil, nil, err
@@ -39,7 +38,7 @@ func loadSelectedContext(manifestFlag, profileFlag, packagesFlag string, errw io
 	if err != nil {
 		return nil, nil, err
 	}
-	selected, err := engine.Select(m, profile, packages)
+	selected, err := selectWithLayers(ctx, m, profile, packages, st, savedSelection(existed, manifestFlag, profileFlag, packagesFlag), out, errw)
 	if err != nil {
 		return nil, nil, UsageError{Msg: err.Error()}
 	}

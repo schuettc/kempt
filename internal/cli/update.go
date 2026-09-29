@@ -90,7 +90,7 @@ func runUpdate(app *tools.App, args []string, out, errw io.Writer) error {
 		return fmt.Errorf("manifest has findings; run kempt lint")
 	}
 
-	selected, err := engine.Select(m, "", st.Packages)
+	selected, err := selectWithLayers(ctx, m, "", st.Packages, st, true, out, errw)
 	if err != nil {
 		return UsageError{Msg: err.Error()}
 	}
