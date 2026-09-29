@@ -21,6 +21,18 @@ gate:
 fmt:
     gofmt -w $(git ls-files '*.go')
 
+# Install the lefthook hooks into this clone's own .git/hooks (once per
+# clone). A global core.hooksPath (casebook's recorder) forwards to them;
+# plain `lefthook install` refuses to run under one.
+hooks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    d="$(cd "$(git rev-parse --git-common-dir)" && pwd)/hooks"
+    git config --local core.hooksPath "$d"
+    trap 'git config --local --unset core.hooksPath' EXIT
+    lefthook install --force >/dev/null
+    echo "lefthook hooks installed in $d"
+
 # ---- kempt ------------------------------------------------------------------
 # Tool-specific checks beyond the gate (CI runs this too). kempt has none.
 verify-extra:
