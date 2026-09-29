@@ -20,6 +20,18 @@ type composed struct {
 	overrides map[int][]string // package index -> pin overrides it made
 }
 
+// Compose returns the selected packages as BuildPlan converges them after the
+// cross-layer rules (see compose), for readers that inspect steps without
+// planning, such as doctor. Composing an already composed selection changes
+// nothing.
+func Compose(ctx *machine.Context, pkgs []*manifest.Package) ([]*manifest.Package, error) {
+	c, err := compose(ctx, pkgs)
+	if err != nil {
+		return nil, err
+	}
+	return c.pkgs, nil
+}
+
 // layerLabel names a package's layer in plan output.
 func layerLabel(p *manifest.Package) string {
 	if p.Layer == "" {

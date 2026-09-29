@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/schuettc/kempt/internal/engine"
 	"github.com/schuettc/kempt/internal/jsonutil"
 	"github.com/schuettc/kempt/internal/machine"
 	"github.com/schuettc/kempt/internal/manifest"
@@ -13,12 +14,13 @@ import (
 func CheckExtraArray(ctx *machine.Context, pkgs []*manifest.Package) []Finding {
 	var out []Finding
 	for _, pkg := range pkgs {
+		pctx := engine.ContextFor(ctx, pkg.Root)
 		for _, step := range pkg.Steps {
 			jm, ok := step.(manifest.JSONMergeStep)
 			if !ok {
 				continue
 			}
-			file := ctx.Expand(jm.File)
+			file := pctx.Expand(jm.File)
 			b, err := os.ReadFile(file)
 			if err != nil {
 				continue // missing/unreadable is plan's concern

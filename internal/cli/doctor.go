@@ -9,6 +9,7 @@ import (
 	tools "github.com/schuettc/tools-common"
 
 	"github.com/schuettc/kempt/internal/doctor"
+	"github.com/schuettc/kempt/internal/engine"
 	_ "github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/manifest"
 )
@@ -88,6 +89,12 @@ func runDoctor(args []string, out, errw io.Writer) error {
 	var cfg manifest.DoctorConfig
 	if m.Doctor != nil {
 		cfg = *m.Doctor
+	}
+	// Doctor inspects steps directly, so it must see them composed: a layer's
+	// entry in a folded replace array is declared, not drift.
+	selected, err = engine.Compose(ctx, selected)
+	if err != nil {
+		return err
 	}
 	report := doctor.Run(ctx, selected, cfg)
 	if *v.json {

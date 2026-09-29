@@ -401,3 +401,33 @@ func TestAdoptAndDropInALayer(t *testing.T) {
 		t.Errorf("after drop: %s", got)
 	}
 }
+
+// After a layered apply, doctor sees the union: the layer's entry in a
+// replace-owned array is not extra-array drift, and a layer's relative symlink
+// resolves against the layer's root.
+func TestDoctorSeesLayers(t *testing.T) {
+	src := workLayer + `
+  [[packages.mkt.symlink]]
+  from = "cfg/skills"
+  to = "~/.skills"
+`
+	_, _, layerDir, _, _ := layeredMachine(t, src)
+	if err := os.MkdirAll(filepath.Join(layerDir, "cfg", "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var out, errw bytes.Buffer
+	if code := Dispatch([]string{"apply", "-yes"}, &out, &errw); code != 0 {
+		t.Fatalf("apply: %s %s", out.String(), errw.String())
+	}
+	out.Reset()
+	Dispatch([]string{"doctor", "-json"}, &out, &errw)
+	for _, code := range []string{"extra-array", "symlink"} {
+		if strings.Contains(out.String(), `"check": "`+code+`"`) {
+			t.Errorf("doctor reported %s on a converged layered machine:\n%s", code, out.String())
+		}
+	}
+	out.Reset()
+	if code := Dispatch([]string{"verify"}, &out, &errw); code != 0 {
+		t.Errorf("verify on a layered machine: %s %s", out.String(), errw.String())
+	}
+}
