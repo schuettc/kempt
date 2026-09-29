@@ -92,3 +92,13 @@ func hasFinding(fs []Finding, path, msgPart string) bool {
 	}
 	return false
 }
+
+// A layer's needs may name base packages; composition checks them, not lint.
+func TestValidateLayerNeedsDeferred(t *testing.T) {
+	m, _ := Parse([]byte("[kempt]\nspec = 1\nlayer = \"user\"\n[packages.a]\nneeds = [\"pi\"]\n"))
+	for _, f := range Validate(m) {
+		if strings.Contains(f.Path, "needs") {
+			t.Errorf("layer need flagged by lint: %v", f)
+		}
+	}
+}
