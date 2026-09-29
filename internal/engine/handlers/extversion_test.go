@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/schuettc/kempt/internal/inventory"
@@ -74,9 +75,13 @@ func TestExtInstalledVersionFromPiList(t *testing.T) {
 	}
 }
 
-func TestRollExtensionRunsPiInstallAndInvalidatesCache(t *testing.T) {
+// TestRollExtensionRunsPiUpdateAndInvalidatesCache: an npm-sourced pi entry
+// rolls with `pi update`, which installs <pkg>@latest. `pi install` would keep
+// the caret range pi recorded at first install (npm:pi-hail stayed on 0.1.1
+// behind 0.7.0), and a versioned `pi install` would pin the settings entry.
+func TestRollExtensionRunsPiUpdateAndInvalidatesCache(t *testing.T) {
 	fr := &run.FakeRunner{Responses: map[string]run.Response{
-		"pi install npm:pi-creel": {Stdout: ""},
+		"pi update npm:pi-creel": {Stdout: ""},
 	}}
 	ctx := &machine.Context{Runner: fr, Cache: map[string]string{inventory.PiCmd: "stale"}}
 	if err := RollExtension(ctx, ExtEntry{Backend: "pi", Entry: "npm:pi-creel", Pkg: "pi-creel"}); err != nil {
@@ -85,8 +90,45 @@ func TestRollExtensionRunsPiInstallAndInvalidatesCache(t *testing.T) {
 	if _, cached := ctx.Cache[inventory.PiCmd]; cached {
 		t.Error("pi inventory cache not invalidated")
 	}
-	if len(fr.Calls) != 1 || fr.Calls[0] != "pi install npm:pi-creel" {
+	if len(fr.Calls) != 1 || fr.Calls[0] != "pi update npm:pi-creel" {
 		t.Errorf("calls = %v", fr.Calls)
+	}
+}
+
+// TestRollExtensionToFailsWhenVersionUnchanged: a roll whose command succeeds
+// but leaves the entry behind is an error, not a success. This is the shape of
+// the pi-hail bug: `pi install` exited 0 and `update` printed "rolled".
+func TestRollExtensionToFailsWhenVersionUnchanged(t *testing.T) {
+	ctx := extCtx(map[string]run.Response{
+		"pi update npm:pi-hail": {Stdout: ""},
+		"pi list":               {Stdout: "  npm:pi-hail@0.1.1\n"},
+	})
+	err := RollExtensionTo(ctx, ExtEntry{Backend: "pi", Entry: "npm:pi-hail", Pkg: "pi-hail"}, "0.7.0")
+	if err == nil {
+		t.Fatal("RollExtensionTo = nil; want an error for a roll that left 0.1.1 behind 0.7.0")
+	}
+	if !strings.Contains(err.Error(), "0.1.1") || !strings.Contains(err.Error(), "0.7.0") {
+		t.Errorf("error %q should name the installed and target versions", err)
+	}
+}
+
+func TestRollExtensionToSucceedsWhenVersionReachesTarget(t *testing.T) {
+	ctx := extCtx(map[string]run.Response{
+		"pi update npm:pi-hail": {Stdout: ""},
+		"pi list":               {Stdout: "  npm:pi-hail@0.7.0\n"},
+	})
+	if err := RollExtensionTo(ctx, ExtEntry{Backend: "pi", Entry: "npm:pi-hail", Pkg: "pi-hail"}, "0.7.0"); err != nil {
+		t.Fatalf("RollExtensionTo: %v", err)
+	}
+}
+
+func TestRollExtensionToFailsWhenVersionUnreadable(t *testing.T) {
+	ctx := extCtx(map[string]run.Response{
+		"pi update npm:pi-hail": {Stdout: ""},
+		"pi list":               {Stdout: ""},
+	})
+	if err := RollExtensionTo(ctx, ExtEntry{Backend: "pi", Entry: "npm:pi-hail", Pkg: "pi-hail"}, "0.7.0"); err == nil {
+		t.Fatal("RollExtensionTo = nil; want an error when the installed version cannot be read after the roll")
 	}
 }
 

@@ -69,3 +69,28 @@ func TestSemverNewer(t *testing.T) {
 		}
 	}
 }
+
+// TestSemverMajorBump: only a higher leading number is a major bump. A 0.x
+// minor is not (the family ships 0.x minors routinely), and a sha or other
+// unparseable version never is.
+func TestSemverMajorBump(t *testing.T) {
+	cases := []struct {
+		target, installed string
+		want              bool
+	}{
+		{"3.2.0", "2.38.0", true},
+		{"1.0.0", "0.9.4", true},
+		{"2.39.0", "2.38.0", false},
+		{"0.7.0", "0.1.1", false},
+		{"2.0.0", "2.0.0", false},
+		{"1.0.0", "2.0.0", false},
+		{"3.0.0-rc.1", "2.9.0", true},
+		{"5bf4e78aaaaa", "1c2d3e4fbbbb", false},
+		{"3.0.0", "", false},
+	}
+	for _, c := range cases {
+		if got := SemverMajorBump(c.target, c.installed); got != c.want {
+			t.Errorf("SemverMajorBump(%q, %q) = %v; want %v", c.target, c.installed, got, c.want)
+		}
+	}
+}

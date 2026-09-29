@@ -83,6 +83,10 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 		return nil
 	}
 	for _, s := range todo {
+		if s.majorBump() {
+			_, _ = fmt.Fprintf(out, "%s  %s -> %s  (major release)\n", s.Tool, s.Installed, s.Target)
+			continue
+		}
 		_, _ = fmt.Fprintf(out, "%s  %s -> %s\n", s.Tool, s.Installed, s.Target)
 	}
 	if !*v.yes {
@@ -104,7 +108,7 @@ func runUpgrade(args []string, out, errw io.Writer) error {
 				return fmt.Errorf("upgrade %s: %w", s.Tool, err)
 			}
 		} else {
-			if err := handlers.RollExtension(ctx, s.Ext); err != nil {
+			if err := handlers.RollExtensionTo(ctx, s.Ext, s.Target); err != nil {
 				return fmt.Errorf("upgrade %s: %w", s.Tool, err)
 			}
 		}

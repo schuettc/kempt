@@ -72,6 +72,16 @@ func SemverNewer(a, b string) bool {
 	return pa.pre > pb.pre
 }
 
+// SemverMajorBump reports whether moving from installed to target crosses a
+// major version: target's leading number is higher. A 0.x minor is not a
+// major bump. Either side failing to parse (a git sha, an unknown version)
+// is never a major bump.
+func SemverMajorBump(target, installed string) bool {
+	pt, okt := parseSemver(target)
+	pi, oki := parseSemver(installed)
+	return okt && oki && pt.core[0] > pi.core[0]
+}
+
 type semverParts struct {
 	core [3]int
 	pre  string

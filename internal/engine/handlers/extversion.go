@@ -165,14 +165,23 @@ func extInventory(ctx *machine.Context, backend string) (map[string]string, erro
 	return inventory.Npm(ctx)
 }
 
-// RollExtension reinstalls a rolling entry at the newest version: `pi install
-// <entry>` for pi entries (pi resolves latest for npm:, and for an existing
-// git: clone fetches the default branch and resets to it) or `npm install -g
-// <pkg>@latest`. It then invalidates the backend's inventory cache key so a
-// later read re-probes.
+// RollExtension reinstalls a rolling entry at the newest version and then
+// invalidates the backend's inventory cache key so a later read re-probes.
+//   - npm-sourced pi entries: `pi update <entry>`, which installs <pkg>@latest
+//     and leaves the settings entry unversioned. `pi install <entry>` does not
+//     roll: npm keeps the caret range pi recorded at first install, so a 0.x
+//     minor or a new major never lands. A versioned `pi install` would pin the
+//     settings entry.
+//   - git: pi entries: `pi install <entry>`; for an existing clone pi fetches
+//     the default branch and resets to it.
+//   - npm entries: `npm install -g <pkg>@latest`.
 func RollExtension(ctx *machine.Context, e ExtEntry) error {
 	if e.Backend == "pi" || e.Backend == "git" {
-		if _, err := ctx.Runner.Run("pi", "install", e.Entry); err != nil {
+		verb := "install"
+		if e.Backend == "pi" {
+			verb = "update"
+		}
+		if _, err := ctx.Runner.Run("pi", verb, e.Entry); err != nil {
 			return err
 		}
 		delete(ctx.Cache, inventory.PiCmd)
@@ -182,5 +191,24 @@ func RollExtension(ctx *machine.Context, e ExtEntry) error {
 		return err
 	}
 	delete(ctx.Cache, inventory.NpmCmd)
+	return nil
+}
+
+// RollExtensionTo rolls e (RollExtension) and then confirms it reached target
+// by re-reading the installed version. A roll command can exit 0 without
+// installing anything, so success is the version moving, not the exit code: a
+// version still behind target, or one that cannot be read, is an error naming
+// what is installed.
+func RollExtensionTo(ctx *machine.Context, e ExtEntry, target string) error {
+	if err := RollExtension(ctx, e); err != nil {
+		return err
+	}
+	installed, known := ExtInstalledVersion(ctx, e)
+	if !known {
+		return fmt.Errorf("installed version unreadable after the roll (latest %s)", target)
+	}
+	if ExtBehind(e, target, installed) {
+		return fmt.Errorf("still at %s after the roll (latest %s)", installed, target)
+	}
 	return nil
 }

@@ -45,15 +45,17 @@ func scanExtensions(ctx *machine.Context, selected []*manifest.Package) []toolSt
 // self-update and converge so `update` lands the machine on latest for rolling
 // entries and the pin for pinned ones. Network path; a per-entry resolution or
 // roll failure is a warning, not fatal, so one unreachable registry or site
-// never aborts the whole update. Pinned entries are handled by the offline
+// never aborts the whole update. A major-version bump is held, never rolled:
+// it is named with the `kempt upgrade` that takes it, since a major release
+// can break a working setup. Pinned entries are handled by the offline
 // converge that follows, not here. It always ends with a one-line summary
-// (checked/rolled/skipped) so a run with nothing behind is still visible.
+// (checked/rolled/skipped/held) so a run with nothing behind is still visible.
 func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writer) error {
 	statuses := scanTools(ctx, selected)
 	statuses = append(statuses, scanExtensions(ctx, selected)...)
 
 	h, _ := engine.HandlerFor("download")
-	var checked, rolled, skipped int
+	var checked, rolled, skipped, held int
 	for _, s := range statuses {
 		if s.Mode != "latest" {
 			continue
@@ -67,11 +69,16 @@ func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writ
 		if !s.Behind {
 			continue
 		}
+		if s.majorBump() {
+			_, _ = fmt.Fprintf(out, "held %s %s -> %s (major release): run kempt upgrade %s\n", s.Tool, s.Installed, s.Target, s.Tool)
+			held++
+			continue
+		}
 		var aerr error
 		if s.Kind == "download" {
 			aerr = h.Apply(ctx, manifest.DownloadStep{Site: s.Site, Tool: s.Tool, Version: s.Target, Bin: s.Bin})
 		} else {
-			aerr = handlers.RollExtension(ctx, s.Ext)
+			aerr = handlers.RollExtensionTo(ctx, s.Ext, s.Target)
 		}
 		if aerr != nil {
 			_, _ = fmt.Fprintf(out, "skipping %s: %v\n", s.Tool, aerr)
@@ -81,6 +88,6 @@ func rollRolling(ctx *machine.Context, selected []*manifest.Package, out io.Writ
 		_, _ = fmt.Fprintf(out, "rolled %s to %s\n", s.Tool, s.Target)
 		rolled++
 	}
-	_, _ = fmt.Fprintf(out, "rolling: %d checked, %d rolled, %d skipped\n", checked, rolled, skipped)
+	_, _ = fmt.Fprintf(out, "rolling: %d checked, %d rolled, %d skipped, %d held\n", checked, rolled, skipped, held)
 	return nil
 }

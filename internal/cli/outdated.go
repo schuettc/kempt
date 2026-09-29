@@ -69,7 +69,11 @@ func runOutdated(args []string, out, errw io.Writer) error {
 			_, _ = fmt.Fprintf(out, "%s  ? (could not resolve latest: %v)\n", s.Tool, s.Err)
 			errored++
 		case s.Behind:
-			_, _ = fmt.Fprintf(out, "%s  %s -> %s  (%s)\n", s.Tool, s.Installed, s.Target, s.Mode)
+			note := s.Mode
+			if s.majorBump() {
+				note += ", major release"
+			}
+			_, _ = fmt.Fprintf(out, "%s  %s -> %s  (%s)\n", s.Tool, s.Installed, s.Target, note)
 			behind++
 		}
 	}

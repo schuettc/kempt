@@ -53,12 +53,14 @@ repeating `-manifest`/`-profile`:
   auto-apply enabled it applies files-class changes only (never software).
 - **`kempt update`** - pull the repo, self-update the binary, roll rolling
   entries (unversioned `npm`/`pi` and `download version = "latest"`) to latest,
-  then converge (pinned entries to their pin).
+  then converge (pinned entries to their pin). A major-version bump is held,
+  not rolled: `update` names it, and `kempt upgrade <name>` takes it.
 - **`kempt outdated`** - list installed tools and extensions with newer
   releases (offline for pinned versions; resolves latest over the network for
   rolling entries).
 - **`kempt upgrade [name…]`** - roll installed tools and extensions that are
-  behind to latest. Prompts unless `-yes`. This, `outdated`, and the `update`
+  behind to latest, major releases included (marked as such in the list it
+  asks about). Prompts unless `-yes`. This, `outdated`, and the `update`
   roll step are the only paths that reach the network for versions; `plan`/`apply`
   never do.
 - **`kempt doctor`** — diagnose machine-vs-manifest drift (read-only). Reports
