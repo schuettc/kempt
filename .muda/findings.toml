@@ -1,2 +1,69 @@
 schema = 1
-findings = []
+
+[[findings]]
+  id = "F-001"
+  waste = "W4"
+  location = "workflow:.github/workflows/ci.yml/job:extra"
+  recipe = "R11"
+  basis = "measured"
+  estimate = "Saving ~50-75s per CI run on the critical path (gate go-ci step: 96-124s on the near-empty entry vs 48s warm), ~7-9 min/day at the window's 19 CI runs / 2.75 days. LOW CONFIDENCE: 4 near-empty runs vs 11 warm runs (go-ci@v0.6.0); every per-step number in the window is n<=19. Effort: small (cache: false on extra's setup-go, then delete cache entry 8278616554 on refs/heads/main; the next gate run on main saves the full entry)."
+  risk = "Low. No required check, job or step is removed or renamed; extra still runs and stays required; gate inventory unchanged. Per-job keys not used, so cache storage does not grow (969 MB of the repo limit). Deleting the entry alone would not fix it; the race recurs on the next go.sum change unless only gate saves the key, so verify again after the next key change."
+  status = "approved"
+  pr = ""
+  exemption-id = ""
+
+  [[findings.evidence]]
+    kind = "log"
+    url = "https://github.com/schuettc/kempt/actions/runs/36613723085/job/109561316172"
+    run_id = 36613723085
+    job_id = 109561316172
+    note = "Key creation after go.sum change in PR #31 (tools-common v0.8.2 -> v0.11.0): extra (setup-go cache:true default, then a no-op `just verify-extra`) wins the save: 'Cache saved with the key: setup-go-macOS-arm64-go-1.26.8-bb66461473d4...' at 18:40:45 (PR ref entry, 7671 B)."
+
+  [[findings.evidence]]
+    kind = "log"
+    url = "https://github.com/schuettc/kempt/actions/runs/36613723085/job/109561316349"
+    run_id = 36613723085
+    job_id = 109561316349
+    note = "gate (the full build) refused: 'Failed to save: Unable to reserve cache with key setup-go-macOS-arm64-go-1.26.8-bb6646... another job may be creating this cache' at 18:42:21."
+
+  [[findings.evidence]]
+    kind = "log"
+    url = "https://github.com/schuettc/kempt/actions/runs/36614469830/job/109563836335"
+    run_id = 36614469830
+    job_id = 109563836335
+    note = "Push on main: extra saves the main-ref entry at 18:46:55 (cache id 8278616554, refs/heads/main, 7806 B per the repository cache list)."
+
+  [[findings.evidence]]
+    kind = "log"
+    url = "https://github.com/schuettc/kempt/actions/runs/36614469830/job/109563836124"
+    run_id = 36614469830
+    job_id = 109563836124
+    note = "gate restores 'Cache Size: ~0 MB (7806 B)' at 18:47:28, then 'Cache hit occurred on the primary key ..., not saving cache': nothing repairs the entry. Same near-empty hit + not-saving in runs 36618205105 and 36618980387 (gate and extra)."
+
+  [[findings.evidence]]
+    kind = "step"
+    url = "https://github.com/schuettc/kempt/actions/runs/36618980387/job/109579202646"
+    run_id = 36618980387
+    job_id = 109579202646
+    step = "Run schuettc/tools-actions/go-ci@v0.10.1"
+    note = "Near-empty entry: 21 'go: downloading' lines; go vet 23s, cross-build 53s, ci.sh total 124s. Run 36613723085 (go-ci v0.10.0, job 109561316349): vet 19s, cross-build 39s, ~96s."
+
+  [[findings.evidence]]
+    kind = "step"
+    url = "https://github.com/schuettc/kempt/actions/runs/36603778258/job/109527477759"
+    run_id = 36603778258
+    job_id = 109527477759
+    step = "Run schuettc/tools-actions/go-ci@v0.6.0"
+    note = "Warm comparison on an earlier key (setup-go-macOS-arm64-go-1.26.8-7b4d528c..., 123283740 B / ~118 MB restored): go vet 2.4s, cross-build 8.3s, ci.sh total 48s. Same runner (macos-26-arm64), same RACE/TARGETS/PACKAGES. Differences accepted by the maintainer: go.sum differs by one module (tools-common v0.8.2 vs v0.11.0); go-ci v0.6.0 vs v0.10.1 changes golangci-lint 2.12.2 -> 2.14.0 (lint 9s vs 12s) and a ci.sh cross-build change that only affects packages with no main (kempt has one). The phases that slowed (vet x8-10, cross-build x5-6) are the build-cache-dependent ones."
+
+  [[findings.evidence]]
+    kind = "file"
+    url = "https://github.com/schuettc/kempt/blob/67e73ab3c1396c9eff37dea05260547723c99f94/.github/workflows/ci.yml"
+    path = ".github/workflows/ci.yml"
+    note = "Both gate and extra run actions/setup-go@v7.0.0 on macos-26 with the default cache: true (v7.0.0 has no restore-only mode) and share the go.sum-hash key; extra compiles nothing and finishes first after any key change."
+
+  [[findings.evidence]]
+    kind = "file"
+    url = "https://github.com/schuettc/kempt/blob/67e73ab3c1396c9eff37dea05260547723c99f94/.github/workflows/release.yml"
+    path = ".github/workflows/release.yml"
+    note = "SUSPECTED, not measured: go-release's internal setup-go uses the same key with cache: true, so the next real release would restore the near-empty entry and build cold. No release built in the window (runs 36614469856, 36618980522 skipped: 'v0.6.0 is already released'); a real release's restore line would settle it."
