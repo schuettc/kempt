@@ -8,8 +8,8 @@ schema = 1
   basis = "measured"
   estimate = "Saving ~50-75s per CI run on the critical path (gate go-ci step: 96-124s on the near-empty entry vs 48s warm), ~7-9 min/day at the window's 19 CI runs / 2.75 days. LOW CONFIDENCE: 4 near-empty runs vs 11 warm runs (go-ci@v0.6.0); every per-step number in the window is n<=19. Effort: small (cache: false on extra's setup-go, then delete cache entry 8278616554 on refs/heads/main; the next gate run on main saves the full entry)."
   risk = "Low. No required check, job or step is removed or renamed; extra still runs and stays required; gate inventory unchanged. Per-job keys not used, so cache storage does not grow (969 MB of the repo limit). Deleting the entry alone would not fix it; the race recurs on the next go.sum change unless only gate saves the key, so verify again after the next key change."
-  status = "approved"
-  pr = ""
+  status = "in-pr"
+  pr = "https://github.com/schuettc/kempt/pull/35"
   exemption-id = ""
 
   [[findings.evidence]]
