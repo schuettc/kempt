@@ -31,5 +31,8 @@ jobs:
       - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
+          # extra builds nothing: only `gate` may save the shared setup-go key,
+          # or a near-empty entry wins the save race and every run builds cold.
+          cache: false
       - uses: extractions/setup-just@v4.0.0
       - run: just verify-extra
