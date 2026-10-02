@@ -1,2 +1,28 @@
 schema = 1
-exemptions = []
+
+[[exemptions]]
+  id = "E-001"
+  waste = "W4"
+  location = "gate:policy:workflow:.github/workflows/ci.yml@9f4b4a7199c7ebc8bb61873cebda390af0e3752913917ce33054a762bbbbff99"
+  reason = "muda has no completeness attestation for workflow files. Reviewed by hand: the only change is `cache: false` on `extra`'s setup-go; jobs, required checks and needs are unchanged; release.yml and version-guard.yml are byte-identical to the baseline. This exemption covers ci.yml as changed by PR #35."
+  agreed-by = "Court Schuett (repo owner)"
+  date = "2026-10-02"
+  review-by = "2026-11-01"
+
+[[exemptions]]
+  id = "E-002"
+  waste = "W4"
+  location = "gate:policy:workflow:.github/workflows/release.yml@3722967734cb98ab526ebadf762f5cb1d49f47566da0696519f68edafb9621f1"
+  reason = "muda has no completeness attestation for workflow files. Reviewed by hand: the only change is `cache: false` on `extra`'s setup-go; jobs, required checks and needs are unchanged; release.yml and version-guard.yml are byte-identical to the baseline. This file, release.yml, is unchanged: byte-identical to the baseline."
+  agreed-by = "Court Schuett (repo owner)"
+  date = "2026-10-02"
+  review-by = "2026-11-01"
+
+[[exemptions]]
+  id = "E-003"
+  waste = "W4"
+  location = "gate:policy:workflow:.github/workflows/version-guard.yml@72f6f0b0204c68a0b4429f7509d8616d61d8f89fa8a23e2df8e4dabc088bffa2"
+  reason = "muda has no completeness attestation for workflow files. Reviewed by hand: the only change is `cache: false` on `extra`'s setup-go; jobs, required checks and needs are unchanged; release.yml and version-guard.yml are byte-identical to the baseline. This file, version-guard.yml, is unchanged: byte-identical to the baseline."
+  agreed-by = "Court Schuett (repo owner)"
+  date = "2026-10-02"
+  review-by = "2026-11-01"
