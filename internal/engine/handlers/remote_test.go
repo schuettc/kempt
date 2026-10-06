@@ -43,6 +43,9 @@ func TestSameRemote(t *testing.T) {
 		{"http://host:8443/owner/repo", "https://host:8443/owner/repo", false},
 		{"ssh://git@host:2222/o/r", "ssh://git@host:2222/o/r", true},
 		{"ssh://git@host:2222/o/r", "https://host/o/r", false},
+		{`C:\repos\one`, `C:\repos\one.git`, false},
+		{"C:foo", "https://c/foo", false},
+		{"host:owner/repo", "https://host/owner/repo", false},
 		{"/srv/git/repo", "/srv/git/repo", true},
 		{"/srv/git/repo", "/srv/git/other", false},
 	}

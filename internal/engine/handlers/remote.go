@@ -6,12 +6,12 @@ import (
 )
 
 // SameRemote reports whether two git remotes name the same repository. Only
-// the plain hosting-service forms are normalised: https:// or http://, and SSH
-// as user git or none (ssh://git@host/owner/repo or git@host:owner/repo), at
+// the plain hosting-service forms are normalised: https:// or http://,
+// ssh:// as user git or none, and the scp shorthand git@host:owner/repo, at
 // the scheme's default port, with no percent-escape, query or fragment. Two of
 // those match when host (any case) and path agree, less a trailing .git or /.
-// Anything else, such as a local path, another SSH user, a non-default port or
-// an absolute scp path, compares exactly.
+// Anything else, such as a local path, a bare host:path, another SSH user, a
+// non-default port or an absolute scp path, compares exactly.
 func SameRemote(a, b string) bool {
 	ha, pa, oka := hostingRemote(a)
 	hb, pb, okb := hostingRemote(b)
@@ -44,18 +44,13 @@ func hostingRemote(s string) (host, path string, ok bool) {
 		}
 		host, path = u.Hostname(), u.Path
 	} else {
-		colon := strings.Index(s, ":")
-		if colon <= 0 || strings.ContainsAny(s[:colon], "/ ") {
+		rest, found := strings.CutPrefix(s, "git@")
+		colon := strings.Index(rest, ":")
+		if !found || colon <= 0 || strings.ContainsAny(rest[:colon], "/ @") {
 			return "", "", false
 		}
-		host, path = s[:colon], "/"+s[colon+1:]
-		if user, h, found := strings.Cut(host, "@"); found {
-			if user != "git" {
-				return "", "", false
-			}
-			host = h
-		}
-		if host == "" || strings.HasPrefix(path, "//") {
+		host, path = rest[:colon], "/"+rest[colon+1:]
+		if strings.HasPrefix(path, "//") {
 			return "", "", false // absolute scp paths are not the hosting form
 		}
 	}
