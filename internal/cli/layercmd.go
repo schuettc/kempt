@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/schuettc/kempt/internal/engine/handlers"
 	"github.com/schuettc/kempt/internal/gitrepo"
 	"github.com/schuettc/kempt/internal/layers"
 	"github.com/schuettc/kempt/internal/manifest"
@@ -66,10 +67,6 @@ func isGitURL(s string) bool {
 		}
 	}
 	return strings.HasSuffix(s, ".git")
-}
-
-func sameRemote(a, b string) bool {
-	return strings.TrimSuffix(strings.TrimSpace(a), ".git") == strings.TrimSuffix(strings.TrimSpace(b), ".git")
 }
 
 // defaultLayerCheckout is where a git layer is cloned when -dir is not given.
@@ -150,7 +147,7 @@ func runLayerAdd(args []string, out, errw io.Writer) error {
 				if err != nil {
 					return UsageError{Msg: fmt.Sprintf("%s exists but is not a git checkout: %v", d, err)}
 				}
-				if !sameRemote(origin, src) {
+				if !handlers.SameRemote(origin, src) {
 					return UsageError{Msg: fmt.Sprintf("%s already has origin %q, not %q", d, origin, src)}
 				}
 			} else if err := gitrepo.Clone(ctx.Runner, src, d); err != nil {

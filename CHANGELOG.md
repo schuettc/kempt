@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- `git-clone` accepts an existing checkout whose origin is the same repository over SSH (as `git@host:owner/repo`, or an `ssh://` URL as user `git` or none) or HTTPS. Only those plain forms are normalised: a remote with a non-default port, another SSH user, an absolute scp path, a percent-escape, query or fragment, a bare `host:path`, or a local path must match exactly. Before, one cloned over SSH under an HTTPS URL, or the reverse, showed as blocked on every run and stopped the rest of its package. `layer add` uses the same comparison for a checkout that already exists. (#41)
+
 ## 0.6.0
 
 - **Layers.** A machine can apply manifests on top of its base: `kempt layer add <name> <git-url | path>` for a work, personal or machine-only layer, and `kempt layer add -project <dir>` for a project's `.kempt/kempt.toml`. A layer file says `[kempt] layer = "user"` or `"project"`. `plan`, `apply`, `update`, `doctor`, `verify`, `outdated`, `upgrade` and `refresh` converge the base and every layer as one plan, and `update` pulls git layers (never a project checkout). `layer list`, `layer remove` and `layer apply` manage them; `adopt`/`drop -layer` edit a layer's packages.

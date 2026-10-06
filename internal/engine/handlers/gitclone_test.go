@@ -77,6 +77,33 @@ func TestGitCloneInspectOriginMismatch(t *testing.T) {
 	}
 }
 
+func TestGitCloneInspectSSHOriginHTTPSRepo(t *testing.T) {
+	for _, c := range []struct {
+		origin string
+		want   engine.Op
+	}{
+		{"git@github.com:example/repo.git", engine.OpNoop},
+		{"git@github.com:example/other.git", engine.OpBlocked},
+	} {
+		h := gitCloneHandler(t)
+		fr := &run.FakeRunner{Responses: map[string]run.Response{}}
+		ctx := gitCtx(t, fr)
+		to := filepath.Join(ctx.RepoDir, "clone")
+		if err := os.MkdirAll(filepath.Join(to, ".git"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		fr.Responses["git -C "+to+" remote get-url origin"] = run.Response{Stdout: c.origin + "\n"}
+
+		d, err := h.Inspect(ctx, manifest.GitCloneStep{Repo: gitRepo + ".git", To: to})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d.Op != c.want {
+			t.Errorf("origin %s: op = %v, detail = %q, want %v", c.origin, d.Op, d.Detail, c.want)
+		}
+	}
+}
+
 func TestGitCloneInspectMissingChange(t *testing.T) {
 	h := gitCloneHandler(t)
 	ctx := gitCtx(t, &run.FakeRunner{})
