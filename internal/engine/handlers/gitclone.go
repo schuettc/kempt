@@ -27,13 +27,13 @@ func (gitCloneHandlerImpl) Inspect(ctx *machine.Context, s manifest.Step) (engin
 
 	gitDir := filepath.Join(to, ".git")
 	if fi, err := os.Stat(gitDir); err == nil && fi.IsDir() {
-		// Existing clone: confirm origin matches the desired repo.
+		// Existing clone: confirm origin is the desired repo, over any transport.
 		out, err := ctx.Runner.Run("git", "-C", to, "remote", "get-url", "origin")
 		if err != nil {
 			return engine.Delta{}, err
 		}
 		origin := strings.TrimSpace(out)
-		if origin == st.Repo {
+		if SameRemote(origin, st.Repo) {
 			return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
 		}
 		return engine.Delta{Op: engine.OpBlocked, Detail: base + fmt.Sprintf(" (origin is %s)", origin)}, nil
