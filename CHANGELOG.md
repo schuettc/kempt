@@ -2,7 +2,7 @@
 
 ## 0.6.1
 
-- `git-clone` accepts an existing checkout whose origin is the same repository over SSH or HTTPS. Before, one cloned over SSH under an HTTPS URL, or the reverse, showed as blocked on every run and stopped the rest of its package. `layer add` uses the same comparison for a checkout that already exists. (#41)
+- `git-clone` accepts an existing checkout whose origin is the same repository over SSH (as `git@host:owner/repo` or `ssh://git@host/...`) or HTTPS. A different port or SSH user, or an absolute scp path, is still a different remote, and a local path must match exactly. Before, one cloned over SSH under an HTTPS URL, or the reverse, showed as blocked on every run and stopped the rest of its package. `layer add` uses the same comparison for a checkout that already exists. (#41)
 
 ## 0.6.0
 
