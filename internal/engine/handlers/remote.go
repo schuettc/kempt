@@ -5,72 +5,63 @@ import (
 	"strings"
 )
 
-// SameRemote reports whether two git remotes name the same repository. It
-// only looks past spelling where the evidence is unambiguous: https, http,
-// ssh:// and scp-like user@host:path remotes match when host (any case),
-// port (absent is the scheme's default), SSH user and path agree, less a
-// trailing .git or /. An SSH remote whose user is git or absent is the
-// hosting-service form of the https one; HTTPS credentials are ignored. A
-// relative scp path is the URL path /path; an absolute one never equals it.
-// Anything else, such as a local path or a URL with a query, compares exactly.
+// SameRemote reports whether two git remotes name the same repository. Only
+// the plain hosting-service forms are normalised: https:// or http://, and SSH
+// as user git or none (ssh://git@host/owner/repo or git@host:owner/repo), at
+// the scheme's default port, with no percent-escape, query or fragment. Two of
+// those match when host (any case) and path agree, less a trailing .git or /.
+// Anything else, such as a local path, another SSH user, a non-default port or
+// an absolute scp path, compares exactly.
 func SameRemote(a, b string) bool {
-	ra, oka := parseRemote(a)
-	rb, okb := parseRemote(b)
+	ha, pa, oka := hostingRemote(a)
+	hb, pb, okb := hostingRemote(b)
 	if !oka || !okb {
 		return a == b
 	}
-	if ra.port != rb.port || (ra.port != "" && ra.ssh != rb.ssh) {
-		return false
-	}
-	return strings.EqualFold(ra.host, rb.host) && ra.user == rb.user && ra.path == rb.path
-}
-
-// remote is a remote's identity. port is "" when it is the scheme's default;
-// user is "" for https and for an SSH user of git or none.
-type remote struct {
-	ssh                    bool
-	user, host, port, path string
+	return strings.EqualFold(ha, hb) && pa == pb
 }
 
 var defaultPorts = map[string]string{"ssh": "22", "https": "443", "http": "80"}
 
-func parseRemote(s string) (remote, bool) {
-	var r remote
+// hostingRemote returns a plain hosting-form remote's host and /path, or false
+// for any other remote.
+func hostingRemote(s string) (host, path string, ok bool) {
+	if strings.ContainsAny(s, "%?#") {
+		return "", "", false
+	}
 	if i := strings.Index(s, "://"); i > 0 {
 		scheme := s[:i]
-		if _, known := defaultPorts[scheme]; !known {
-			return r, false
-		}
+		def, known := defaultPorts[scheme]
 		u, err := url.Parse(s)
-		if err != nil || u.Hostname() == "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(s, "#") {
-			return r, false
+		if !known || err != nil || u.Hostname() == "" {
+			return "", "", false
 		}
-		r.ssh, r.host, r.port, r.path = scheme == "ssh", u.Hostname(), u.Port(), u.Path
-		if r.port == defaultPorts[scheme] {
-			r.port = ""
+		if p := u.Port(); p != "" && p != def {
+			return "", "", false
 		}
-		if r.ssh && u.User != nil {
-			r.user = u.User.Username()
+		if scheme == "ssh" && u.User != nil && u.User.Username() != "git" {
+			return "", "", false
 		}
+		host, path = u.Hostname(), u.Path
 	} else {
-		at := strings.Index(s, "@")
 		colon := strings.Index(s, ":")
-		if at <= 0 || colon < at+2 || strings.ContainsAny(s[:colon], "/ ") {
-			return r, false
+		if colon <= 0 || strings.ContainsAny(s[:colon], "/ ") {
+			return "", "", false
 		}
-		r.ssh, r.user, r.host, r.path = true, s[:at], s[at+1:colon], s[colon+1:]
-		if strings.HasPrefix(r.path, "/") {
-			r.path = "abs:" + r.path // home-relative and absolute paths never meet
-		} else {
-			r.path = "/" + r.path
+		host, path = s[:colon], "/"+s[colon+1:]
+		if user, h, found := strings.Cut(host, "@"); found {
+			if user != "git" {
+				return "", "", false
+			}
+			host = h
+		}
+		if host == "" || strings.HasPrefix(path, "//") {
+			return "", "", false // absolute scp paths are not the hosting form
 		}
 	}
-	if r.user == "git" {
-		r.user = ""
+	path = strings.TrimRight(strings.TrimSuffix(strings.TrimRight(path, "/"), ".git"), "/")
+	if path == "" {
+		return "", "", false
 	}
-	r.path = strings.TrimRight(strings.TrimSuffix(strings.TrimRight(r.path, "/"), ".git"), "/")
-	if r.path == "" || r.path == "abs:" || !strings.HasPrefix(r.path, "/") && !strings.HasPrefix(r.path, "abs:/") {
-		return r, false
-	}
-	return r, true
+	return host, path, true
 }
