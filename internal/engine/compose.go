@@ -318,6 +318,8 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		pkgs[rAt.pkg].Steps[rAt.step] = rs
 		contributorsAt[rAt] = unionStrings(contributorsAt[rAt], contributorsAt[aAt])
 		if len(rest) == 0 {
+			rs.Remove = unionStrings(rs.Remove, as.Remove)
+			pkgs[rAt.pkg].Steps[rAt.step] = rs
 			remove[aAt] = true
 			delete(appendAt, file)
 		} else {
@@ -462,7 +464,8 @@ func (c *composed) rebuild(remove map[mergeRef]bool, move map[mergeRef]mergeRef)
 
 // foldGroup combines a group's merge documents in order: maps deep-merge,
 // arrays take the ordered union, and a scalar set differently by a later
-// layer wins and is reported as an override.
+// layer wins and is reported as an override. A json-merge contributor's remove
+// paths apply to the accumulated document before its own merge.
 func foldGroup(pkgs []*manifest.Package, g *mergeGroup) (map[string]any, []string, []string) {
 	var acc any = map[string]any{}
 	setBy := map[string]string{}
@@ -478,11 +481,15 @@ func foldGroup(pkgs []*manifest.Package, g *mergeGroup) (map[string]any, []strin
 		var doc map[string]any
 		switch st := p.Steps[r.step].(type) {
 		case manifest.JSONMergeStep:
+			// A layer's removals drop what earlier layers set, before its own merge.
+			acc = jsonutil.RemovePaths(acc, st.Remove)
 			doc = st.Merge
 		case manifest.TomlMergeStep:
 			doc = st.Merge
 		}
-		acc = combine(acc, jsonutil.ToAny(doc), "", label, setBy, &overrides)
+		if doc != nil {
+			acc = combine(acc, jsonutil.ToAny(doc), "", label, setBy, &overrides)
+		}
 	}
 	sort.Strings(overrides)
 	out, _ := acc.(map[string]any)

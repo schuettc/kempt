@@ -45,7 +45,7 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 
 	desired := desiredDoc(ctx, st)
 	replace := st.Arrays == "replace"
-	pruned := removePaths(current, st.Remove)
+	pruned := jsonutil.RemovePaths(current, st.Remove)
 	next := merge(desired, pruned, replace)
 	if len(st.Remove) == 0 && isSubset(desired, current, replace) || len(st.Remove) > 0 && reflect.DeepEqual(next, current) {
 		return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
@@ -55,7 +55,7 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 	var gone []string
 	for _, r := range st.Remove {
 		path := strings.Split(r, ".")
-		if hasPath(current, path) && !hasPath(next, path) {
+		if jsonutil.HasPath(current, path) && !jsonutil.HasPath(next, path) {
 			gone = append(gone, r)
 		}
 	}
@@ -79,49 +79,6 @@ func desiredDoc(ctx *machine.Context, st manifest.JSONMergeStep) any {
 	return jsonutil.ExpandHome(jsonutil.ToAny(m), ctx.Home)
 }
 
-// removePaths returns v without the dotted key paths in paths. A missing path
-// is skipped. v is not mutated: maps along a removed path are copied.
-func removePaths(v any, paths []string) any {
-	for _, p := range paths {
-		v = removePath(v, strings.Split(p, "."))
-	}
-	return v
-}
-
-func removePath(v any, path []string) any {
-	m, ok := v.(map[string]any)
-	if !ok {
-		return v
-	}
-	child, ok := m[path[0]]
-	if !ok {
-		return v
-	}
-	out := make(map[string]any, len(m))
-	for k, cv := range m {
-		out[k] = cv
-	}
-	if len(path) == 1 {
-		delete(out, path[0])
-	} else {
-		out[path[0]] = removePath(child, path[1:])
-	}
-	return out
-}
-
-func hasPath(v any, path []string) bool {
-	for _, k := range path {
-		m, ok := v.(map[string]any)
-		if !ok {
-			return false
-		}
-		if v, ok = m[k]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
 func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 	st := s.(manifest.JSONMergeStep)
 	file := ctx.Expand(st.File)
@@ -141,7 +98,7 @@ func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 		return fmt.Errorf("existing file is not valid JSON: %s", file)
 	}
 
-	merged := merge(desiredDoc(ctx, st), removePaths(current, st.Remove), st.Arrays == "replace")
+	merged := merge(desiredDoc(ctx, st), jsonutil.RemovePaths(current, st.Remove), st.Arrays == "replace")
 	out, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
 		return err
