@@ -393,6 +393,9 @@ func placeRemoves(pkgs []*manifest.Package, file string, paths []string, appendA
 		return
 	}
 	for _, p := range paths {
+		if coveredBy(p, paths) {
+			continue // an ancestor's removal already deletes it
+		}
 		target := ats[len(ats)-1]
 		for _, at := range ats {
 			if jsonutil.HasPath(pkgs[at.pkg].Steps[at.step].(manifest.JSONMergeStep).Merge, strings.Split(p, ".")) {
@@ -416,6 +419,16 @@ func placeRemoves(pkgs []*manifest.Package, file string, paths []string, appendA
 		}
 		pkgs[target.pkg].Steps[target.step] = st
 	}
+}
+
+// coveredBy reports whether another of paths is a strict ancestor of p.
+func coveredBy(p string, paths []string) bool {
+	for _, q := range paths {
+		if strings.HasPrefix(p, q+".") {
+			return true
+		}
+	}
+	return false
 }
 
 func getPath(m map[string]any, path []string) (any, bool) {
