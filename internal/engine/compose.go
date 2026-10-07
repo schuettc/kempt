@@ -211,9 +211,9 @@ type mergeGroup struct {
 }
 
 // foldMerges folds, for every file that merges from two or more layers, its
-// json-merge steps (one fold per arrays mode, keeping every layer's remove
-// paths) and its toml-merge steps into a single step each, at the first
-// contributor's position. When such a file has
+// json-merge steps (one fold per arrays mode; remove paths per pruneRemoved
+// and placeRemoves) and its toml-merge steps into a single step each, at the
+// first contributor's position. When such a file has
 // both an append and a replace fold, an array the replace fold owns absorbs the
 // append fold's elements for it (so a layer appending to a base's replace list
 // keeps its entry and converging is idempotent), and when anything is left in
@@ -262,6 +262,8 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		}
 	}
 
+	fileRemoves := c.pruneRemoved(groups, order, fileLayers)
+
 	remove := map[mergeRef]bool{}
 	replaceAt := map[string]mergeRef{} // file -> the replace fold's position
 	appendAt := map[string]mergeRef{}  // file -> the append fold's position
@@ -282,11 +284,7 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 			if arrays == "append" {
 				arrays = ""
 			}
-			var removes []string
-			for _, r := range g.refs {
-				removes = unionStrings(removes, pkgs[r.pkg].Steps[r.step].(manifest.JSONMergeStep).Remove)
-			}
-			pkgs[first.pkg].Steps[first.step] = manifest.JSONMergeStep{File: g.file, Merge: merged, Remove: removes, Arrays: arrays}
+			pkgs[first.pkg].Steps[first.step] = manifest.JSONMergeStep{File: g.file, Merge: merged, Arrays: arrays}
 			if g.mode == "replace" {
 				replaceAt[g.file] = first
 			}
@@ -318,14 +316,15 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		pkgs[rAt.pkg].Steps[rAt.step] = rs
 		contributorsAt[rAt] = unionStrings(contributorsAt[rAt], contributorsAt[aAt])
 		if len(rest) == 0 {
-			rs.Remove = unionStrings(rs.Remove, as.Remove)
-			pkgs[rAt.pkg].Steps[rAt.step] = rs
 			remove[aAt] = true
 			delete(appendAt, file)
 		} else {
 			as.Merge = rest
 			pkgs[aAt.pkg].Steps[aAt.step] = as
 		}
+	}
+	for file, paths := range fileRemoves {
+		placeRemoves(pkgs, file, paths, appendAt, replaceAt)
 	}
 	for at, contributors := range contributorsAt {
 		if len(contributors) < 2 {
@@ -343,6 +342,68 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 		}
 	}
 	c.rebuild(remove, move)
+}
+
+// pruneRemoved applies, for every json-merge file folded from two or more
+// layers, each contributor's remove paths to the merge documents of the
+// contributors before it (in either arrays mode), so a later layer's removal
+// wins over an earlier layer's merge. It returns each such file's remove paths
+// in contributor order; the folded steps carry none until placeRemoves.
+func (c *composed) pruneRemoved(groups map[string]*mergeGroup, order []string, fileLayers map[string]map[string]bool) map[string][]string {
+	byFile := map[string][]mergeRef{}
+	for _, key := range order {
+		g := groups[key]
+		if g.kind == "json-merge" && len(fileLayers[g.file]) >= 2 {
+			byFile[g.file] = append(byFile[g.file], g.refs...)
+		}
+	}
+	out := map[string][]string{}
+	for file, refs := range byFile {
+		sort.Slice(refs, func(i, j int) bool { return less(refs[i], refs[j]) })
+		for j, rj := range refs {
+			removes := c.pkgs[rj.pkg].Steps[rj.step].(manifest.JSONMergeStep).Remove
+			if len(removes) == 0 {
+				continue
+			}
+			out[file] = unionStrings(out[file], removes)
+			for _, ri := range refs[:j] {
+				st := c.pkgs[ri.pkg].Steps[ri.step].(manifest.JSONMergeStep)
+				st.Merge, _ = jsonutil.RemovePaths(st.Merge, removes).(map[string]any)
+				c.pkgs[ri.pkg].Steps[ri.step] = st
+			}
+		}
+	}
+	return out
+}
+
+// placeRemoves puts each of a folded file's remove paths on the fold whose
+// merge sets that path again (the replace fold first, as it applies last), so
+// removing and re-setting happen in one step and both folds converge. A path no
+// fold sets goes on the fold that applies first: the append fold when there is
+// one.
+func placeRemoves(pkgs []*manifest.Package, file string, paths []string, appendAt, replaceAt map[string]mergeRef) {
+	var ats []mergeRef
+	if at, ok := replaceAt[file]; ok {
+		ats = append(ats, at)
+	}
+	if at, ok := appendAt[file]; ok {
+		ats = append(ats, at)
+	}
+	if len(ats) == 0 {
+		return
+	}
+	for _, p := range paths {
+		target := ats[len(ats)-1]
+		for _, at := range ats {
+			if jsonutil.HasPath(pkgs[at.pkg].Steps[at.step].(manifest.JSONMergeStep).Merge, strings.Split(p, ".")) {
+				target = at
+				break
+			}
+		}
+		st := pkgs[target.pkg].Steps[target.step].(manifest.JSONMergeStep)
+		st.Remove = append(st.Remove, p)
+		pkgs[target.pkg].Steps[target.step] = st
+	}
 }
 
 // absorb moves every array in app that owned sets at the same path into owned
@@ -464,8 +525,7 @@ func (c *composed) rebuild(remove map[mergeRef]bool, move map[mergeRef]mergeRef)
 
 // foldGroup combines a group's merge documents in order: maps deep-merge,
 // arrays take the ordered union, and a scalar set differently by a later
-// layer wins and is reported as an override. A json-merge contributor's remove
-// paths apply to the accumulated document before its own merge.
+// layer wins and is reported as an override.
 func foldGroup(pkgs []*manifest.Package, g *mergeGroup) (map[string]any, []string, []string) {
 	var acc any = map[string]any{}
 	setBy := map[string]string{}
@@ -481,8 +541,6 @@ func foldGroup(pkgs []*manifest.Package, g *mergeGroup) (map[string]any, []strin
 		var doc map[string]any
 		switch st := p.Steps[r.step].(type) {
 		case manifest.JSONMergeStep:
-			// A layer's removals drop what earlier layers set, before its own merge.
-			acc = jsonutil.RemovePaths(acc, st.Remove)
 			doc = st.Merge
 		case manifest.TomlMergeStep:
 			doc = st.Merge
