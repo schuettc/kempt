@@ -378,9 +378,9 @@ func (c *composed) pruneRemoved(groups map[string]*mergeGroup, order []string, f
 
 // placeRemoves puts each of a folded file's remove paths on the fold whose
 // merge sets that path again (the replace fold first, as it applies last), so
-// removing and re-setting happen in one step and both folds converge. A path no
-// fold sets goes on the fold that applies first: the append fold when there is
-// one.
+// removing and re-setting happen in one step and both folds converge; that
+// fold takes over the append fold's part of the removed subtree. A path no fold
+// sets goes on the fold that applies first: the append fold when there is one.
 func placeRemoves(pkgs []*manifest.Package, file string, paths []string, appendAt, replaceAt map[string]mergeRef) {
 	var ats []mergeRef
 	if at, ok := replaceAt[file]; ok {
@@ -402,8 +402,48 @@ func placeRemoves(pkgs []*manifest.Package, file string, paths []string, appendA
 		}
 		st := pkgs[target.pkg].Steps[target.step].(manifest.JSONMergeStep)
 		st.Remove = append(st.Remove, p)
+		if aAt, ok := appendAt[file]; ok && target != aAt {
+			// The fold that removes a path owns its whole subtree: the append
+			// fold's part of it moves over, or it would be removed again.
+			as := pkgs[aAt.pkg].Steps[aAt.step].(manifest.JSONMergeStep)
+			path := strings.Split(p, ".")
+			if sub, ok := getPath(as.Merge, path); ok {
+				as.Merge, _ = jsonutil.RemovePaths(as.Merge, []string{p}).(map[string]any)
+				pkgs[aAt.pkg].Steps[aAt.step] = as
+				own, _ := getPath(st.Merge, path)
+				st.Merge = setPath(deepCopy(st.Merge), path, combine(sub, own, "", "", map[string]string{}, new([]string)))
+			}
+		}
 		pkgs[target.pkg].Steps[target.step] = st
 	}
+}
+
+func getPath(m map[string]any, path []string) (any, bool) {
+	var v any = m
+	for _, k := range path {
+		mm, ok := v.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		if v, ok = mm[k]; !ok {
+			return nil, false
+		}
+	}
+	return v, true
+}
+
+// setPath sets path in m to v, creating maps along it, and returns m.
+func setPath(m map[string]any, path []string, v any) map[string]any {
+	if len(path) == 1 {
+		m[path[0]] = v
+		return m
+	}
+	child, _ := m[path[0]].(map[string]any)
+	if child == nil {
+		child = map[string]any{}
+	}
+	m[path[0]] = setPath(child, path[1:], v)
+	return m
 }
 
 // absorb moves every array in app that owned sets at the same path into owned

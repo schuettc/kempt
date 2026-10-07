@@ -337,6 +337,12 @@ func TestFoldKeepsRemovePaths(t *testing.T) {
 			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
 				Merge: map[string]any{"s": map[string]any{"d": map[string]any{"command": "y"}}}}}},
 		}},
+		{"replace base rebuilds an entry a later append layer adds to", stdio, `map[list:[r1] s:map[d:map[type:http url:u]]]`, []*manifest.Package{
+			{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Arrays: "replace",
+				Remove: []string{"s.d"}, Merge: map[string]any{"list": []any{"r1"}, "s": map[string]any{"d": map[string]any{"type": "http"}}}}}},
+			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+				Merge: map[string]any{"s": map[string]any{"d": map[string]any{"url": "u"}}}}}},
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
