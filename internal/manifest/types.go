@@ -131,6 +131,7 @@ type SymlinkStep struct {
 type JSONMergeStep struct {
 	File   string         `toml:"file"`
 	Merge  map[string]any `toml:"merge"`
+	Remove []string       `toml:"remove"` // dotted key paths deleted before the merge
 	Arrays string         `toml:"arrays"` // ""|"append"|"replace"; empty == "append"
 	Only   *Only          `toml:"only"`
 }

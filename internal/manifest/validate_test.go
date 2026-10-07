@@ -398,3 +398,24 @@ start-interval = 1800
 		t.Fatalf("want no findings, got %v", f)
 	}
 }
+
+// remove parses, satisfies the merge requirement on its own, and rejects an
+// empty key.
+func TestValidateJSONMergeRemove(t *testing.T) {
+	f := findingsFor(t, `
+[kempt]
+spec = 1
+[packages.a]
+description = "a"
+[[packages.a.json-merge]]
+file = "/tmp/foo.json"
+remove = ["mcpServers.daybook.command"]
+[[packages.a.json-merge]]
+file = "/tmp/foo.json"
+remove = ["mcpServers..command"]
+merge = { x = 1 }
+`)
+	if len(f) != 1 || !strings.Contains(f[0].Path, "json-merge[1]") || !strings.Contains(f[0].Msg, "empty key") {
+		t.Fatalf("want one empty-key finding on json-merge[1], got %v", f)
+	}
+}

@@ -19,7 +19,8 @@ func init() { engine.RegisterHandler(jsonMergeHandler{}) }
 
 // jsonMergeHandler realises the desired state: ctx.Expand(File) is JSON that is
 // a deep superset of Merge. Maps recurse, arrays gain missing elements, scalars
-// overwrite.
+// overwrite. Remove paths are deleted before the merge, so a path that Merge
+// sets again is replaced rather than left alone.
 type jsonMergeHandler struct{}
 
 func (jsonMergeHandler) Kind() string { return "json-merge" }
@@ -42,14 +43,40 @@ func (jsonMergeHandler) Inspect(ctx *machine.Context, s manifest.Step) (engine.D
 		return engine.Delta{Op: engine.OpBlocked, Detail: base + " (existing file is not valid JSON)"}, nil //nolint:nilerr // an unparseable target is a blocked step, not an error
 	}
 
-	desired := jsonutil.ExpandHome(jsonutil.ToAny(st.Merge), ctx.Home)
+	desired := desiredDoc(ctx, st)
 	replace := st.Arrays == "replace"
-	if isSubset(desired, current, replace) {
+	pruned := jsonutil.RemovePaths(current, st.Remove)
+	next := merge(desired, pruned, replace)
+	if len(st.Remove) == 0 && isSubset(desired, current, replace) || len(st.Remove) > 0 && reflect.DeepEqual(next, current) {
 		return engine.Delta{Op: engine.OpNoop, Detail: base}, nil
 	}
 
-	keys := mergeKeys(desired.(map[string]any), current, replace)
-	return engine.Delta{Op: engine.OpChange, Detail: base + fmt.Sprintf(" (merge keys: %s)", strings.Join(keys, ", "))}, nil
+	var parts []string
+	var gone []string
+	for _, r := range st.Remove {
+		path := strings.Split(r, ".")
+		if jsonutil.HasPath(current, path) && !jsonutil.HasPath(next, path) {
+			gone = append(gone, r)
+		}
+	}
+	if len(gone) > 0 {
+		sort.Strings(gone)
+		parts = append(parts, "remove: "+strings.Join(gone, ", "))
+	}
+	if keys := mergeKeys(desired.(map[string]any), pruned, replace); len(keys) > 0 {
+		parts = append(parts, "merge keys: "+strings.Join(keys, ", "))
+	}
+	return engine.Delta{Op: engine.OpChange, Detail: base + " (" + strings.Join(parts, "; ") + ")"}, nil
+}
+
+// desiredDoc is the step's merge document with ${HOME} expanded; a step that
+// only removes merges an empty object.
+func desiredDoc(ctx *machine.Context, st manifest.JSONMergeStep) any {
+	m := st.Merge
+	if m == nil {
+		m = map[string]any{}
+	}
+	return jsonutil.ExpandHome(jsonutil.ToAny(m), ctx.Home)
 }
 
 func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
@@ -71,7 +98,7 @@ func (jsonMergeHandler) Apply(ctx *machine.Context, s manifest.Step) error {
 		return fmt.Errorf("existing file is not valid JSON: %s", file)
 	}
 
-	merged := merge(jsonutil.ExpandHome(jsonutil.ToAny(st.Merge), ctx.Home), current, st.Arrays == "replace")
+	merged := merge(desiredDoc(ctx, st), jsonutil.RemovePaths(current, st.Remove), st.Arrays == "replace")
 	out, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
 		return err

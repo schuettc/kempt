@@ -297,3 +297,82 @@ func TestFoldTwoAppendingLayersStayInBase(t *testing.T) {
 		}
 	}
 }
+
+// A layer's remove paths survive the fold of several layers' merges into one
+// file: a later layer removes what an earlier one set (in either arrays mode),
+// a later layer re-sets what an earlier one removed, a remove-only step keeps
+// the other layers' keys, and an append step absorbed into a replace fold keeps
+// its removals. Each case converges: the second plan has no changes.
+func TestFoldKeepsRemovePaths(t *testing.T) {
+	stdio := `{"s":{"d":{"command":"x","args":[]}}}`
+	cases := []struct {
+		name, start, want string
+		pkgs              []*manifest.Package
+	}{
+		{"later layer removes what the base sets", "", `map[s:map[d:map[url:u]]]`, []*manifest.Package{
+			{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+				Merge: map[string]any{"s": map[string]any{"d": map[string]any{"command": "x", "args": []any{}}}}}}},
+			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+				Remove: []string{"s.d.command", "s.d.args"}, Merge: map[string]any{"s": map[string]any{"d": map[string]any{"url": "u"}}}}}},
+		}},
+		{"remove-only layer keeps the base's keys", stdio, `map[model:opus s:map[d:map[args:[]]]]`, []*manifest.Package{
+			{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Merge: map[string]any{"model": "opus"}}}},
+			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Remove: []string{"s.d.command"}}}},
+		}},
+		{"absorbed append step keeps its removals", stdio, `map[list:[r1 a1] s:map[d:map[args:[]]]]`, []*manifest.Package{
+			{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Arrays: "replace",
+				Merge: map[string]any{"list": []any{"r1"}}}}},
+			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+				Remove: []string{"s.d.command"}, Merge: map[string]any{"list": []any{"a1"}}}}},
+		}},
+		{"later append layer removes what a replace base sets", "", `map[list:[r1] s:map[d:map[url:u]]]`, []*manifest.Package{
+			{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Arrays: "replace",
+				Merge: map[string]any{"list": []any{"r1"}, "s": map[string]any{"d": map[string]any{"command": "x", "args": []any{}}}}}}},
+			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+				Remove: []string{"s.d.command", "s.d.args"}, Merge: map[string]any{"s": map[string]any{"d": map[string]any{"url": "u"}}}}}},
+		}},
+		{"later append layer sets what a replace base removes", stdio, `map[list:[r1] s:map[d:map[command:y]]]`, []*manifest.Package{
+			{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Arrays: "replace",
+				Remove: []string{"s.d"}, Merge: map[string]any{"list": []any{"r1"}}}}},
+			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+				Merge: map[string]any{"s": map[string]any{"d": map[string]any{"command": "y"}}}}}},
+		}},
+		{"replace base rebuilds an entry a later append layer adds to", stdio, `map[list:[r1] s:map[d:map[type:http url:u]]]`, []*manifest.Package{
+			{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Arrays: "replace",
+				Remove: []string{"s.d.url", "s.d"}, Merge: map[string]any{"list": []any{"r1"}, "s": map[string]any{"d": map[string]any{"type": "http"}}}}}},
+			{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+				Merge: map[string]any{"s": map[string]any{"d": map[string]any{"url": "u"}}}}}},
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := buildCtx(t)
+			f := filepath.Join(ctx.Home, "c.json")
+			if tc.start != "" {
+				if err := os.WriteFile(f, []byte(tc.start), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for run := 1; run <= 2; run++ {
+				plan, err := engine.BuildPlan(ctx, tc.pkgs)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, pp := range plan.Packages {
+					for _, sr := range pp.Steps {
+						if run == 2 && sr.Delta.Op == engine.OpChange {
+							t.Fatalf("second converge still changes: %s", sr.Delta.Detail)
+						}
+					}
+				}
+				var out bytes.Buffer
+				if failed := engine.Execute(ctx, plan, &out); failed != 0 {
+					t.Fatalf("failed=%d: %s", failed, out.String())
+				}
+			}
+			if got := fmt.Sprint(readJSON(t, f)); got != tc.want {
+				t.Errorf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
