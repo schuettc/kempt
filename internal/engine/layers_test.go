@@ -297,3 +297,28 @@ func TestFoldTwoAppendingLayersStayInBase(t *testing.T) {
 		}
 	}
 }
+
+// A layer's remove paths survive the fold of two layers' merges into one file.
+func TestFoldKeepsRemovePaths(t *testing.T) {
+	ctx := buildCtx(t)
+	f := filepath.Join(ctx.Home, "c.json")
+	if err := os.WriteFile(f, []byte(`{"s":{"d":{"command":"x","args":[]}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := engine.BuildPlan(ctx, []*manifest.Package{
+		{Name: "base", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json", Merge: map[string]any{"model": "opus"}}}},
+		{Name: "work/p", Layer: "work", Steps: []manifest.Step{manifest.JSONMergeStep{File: "~/c.json",
+			Remove: []string{"s.d.command", "s.d.args"}, Merge: map[string]any{"s": map[string]any{"d": map[string]any{"url": "u"}}}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	if failed := engine.Execute(ctx, plan, &out); failed != 0 {
+		t.Fatalf("failed=%d: %s", failed, out.String())
+	}
+	got := readJSON(t, f)
+	if want := `map[model:opus s:map[d:map[url:u]]]`; fmt.Sprint(got) != want {
+		t.Errorf("got %v, want %s", got, want)
+	}
+}

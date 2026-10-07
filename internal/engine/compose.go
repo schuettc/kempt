@@ -211,8 +211,9 @@ type mergeGroup struct {
 }
 
 // foldMerges folds, for every file that merges from two or more layers, its
-// json-merge steps (one fold per arrays mode) and its toml-merge steps into a
-// single step each, at the first contributor's position. When such a file has
+// json-merge steps (one fold per arrays mode, keeping every layer's remove
+// paths) and its toml-merge steps into a single step each, at the first
+// contributor's position. When such a file has
 // both an append and a replace fold, an array the replace fold owns absorbs the
 // append fold's elements for it (so a layer appending to a base's replace list
 // keeps its entry and converging is idempotent), and when anything is left in
@@ -281,7 +282,11 @@ func (c *composed) foldMerges(ctx *machine.Context) {
 			if arrays == "append" {
 				arrays = ""
 			}
-			pkgs[first.pkg].Steps[first.step] = manifest.JSONMergeStep{File: g.file, Merge: merged, Arrays: arrays}
+			var removes []string
+			for _, r := range g.refs {
+				removes = unionStrings(removes, pkgs[r.pkg].Steps[r.step].(manifest.JSONMergeStep).Remove)
+			}
+			pkgs[first.pkg].Steps[first.step] = manifest.JSONMergeStep{File: g.file, Merge: merged, Remove: removes, Arrays: arrays}
 			if g.mode == "replace" {
 				replaceAt[g.file] = first
 			}

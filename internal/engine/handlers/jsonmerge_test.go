@@ -351,3 +351,73 @@ func TestJSONMergeExpandsHomeToken(t *testing.T) {
 		t.Fatalf("second inspect op = %v (%q), want noop", d.Op, d.Detail)
 	}
 }
+
+// The Daybook switch: a stdio server entry becomes an http one. remove drops
+// the keys the old entry had before the merge, so command and args do not
+// linger next to url; a second run is a no-op.
+func TestJSONMergeRemoveKeys(t *testing.T) {
+	h := jsonHandler(t)
+	ctx := testCtx(t)
+	f := filepath.Join(ctx.RepoDir, ".mcp.json")
+	writeJSON(t, f, map[string]any{"mcpServers": map[string]any{
+		"daybook": map[string]any{"command": "scripts/daybook-mcp", "args": []any{}},
+		"galley":  map[string]any{"command": "galley"},
+	}})
+	s := manifest.JSONMergeStep{
+		File:   f,
+		Remove: []string{"mcpServers.daybook.command", "mcpServers.daybook.args", "mcpServers.gone.command"},
+		Merge: map[string]any{"mcpServers": map[string]any{
+			"daybook": map[string]any{"type": "http", "url": "https://daybook.example/lm/mcp"},
+		}},
+	}
+
+	d, err := h.Inspect(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Op != engine.OpChange || !strings.Contains(d.Detail, "remove: mcpServers.daybook.args, mcpServers.daybook.command") {
+		t.Fatalf("op = %v (%q), want change naming the removed keys", d.Op, d.Detail)
+	}
+	if err := h.Apply(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"mcpServers": map[string]any{
+		"daybook": map[string]any{"type": "http", "url": "https://daybook.example/lm/mcp"},
+		"galley":  map[string]any{"command": "galley"},
+	}}
+	if got := readJSON(t, f); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if d, _ := h.Inspect(ctx, s); d.Op != engine.OpNoop {
+		t.Fatalf("second inspect op = %v (%q), want noop", d.Op, d.Detail)
+	}
+
+	// A removed key reappearing (drift) is a change again.
+	writeJSON(t, f, map[string]any{"mcpServers": map[string]any{
+		"daybook": map[string]any{"type": "http", "url": "https://daybook.example/lm/mcp", "command": "x"},
+		"galley":  map[string]any{"command": "galley"},
+	}})
+	if d, _ := h.Inspect(ctx, s); d.Op != engine.OpChange {
+		t.Fatalf("drift inspect op = %v (%q), want change", d.Op, d.Detail)
+	}
+}
+
+// remove applies before merge, so removing a whole entry and merging it anew
+// replaces it, and stays a no-op once applied.
+func TestJSONMergeRemoveThenMergeReplacesSubtree(t *testing.T) {
+	h := jsonHandler(t)
+	ctx := testCtx(t)
+	f := filepath.Join(ctx.RepoDir, "c.json")
+	writeJSON(t, f, map[string]any{"s": map[string]any{"d": map[string]any{"command": "x", "args": []any{"y"}}}})
+	s := manifest.JSONMergeStep{File: f, Remove: []string{"s.d"}, Merge: map[string]any{"s": map[string]any{"d": map[string]any{"url": "u"}}}}
+	if err := h.Apply(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"s": map[string]any{"d": map[string]any{"url": "u"}}}
+	if got := readJSON(t, f); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	if d, _ := h.Inspect(ctx, s); d.Op != engine.OpNoop {
+		t.Fatalf("second inspect op = %v (%q), want noop", d.Op, d.Detail)
+	}
+}

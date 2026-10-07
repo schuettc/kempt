@@ -201,6 +201,7 @@
           "type": "object",
           "additionalProperties": true
         },
+        "remove": { "type": "array", "items": { "type": "string" } },
         "arrays": { "enum": ["append", "replace"] },
         "only": { "$ref": "#/$defs/only" }
       }

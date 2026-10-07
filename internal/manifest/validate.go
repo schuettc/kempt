@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -260,7 +261,7 @@ func missingFields(s Step) []string {
 		req(len(v.Program) > 0, "program")
 	case JSONMergeStep:
 		req(v.File != "", "file")
-		req(len(v.Merge) > 0, "merge")
+		req(len(v.Merge) > 0 || len(v.Remove) > 0, "merge")
 	case TomlMergeStep:
 		req(v.File != "", "file")
 		req(len(v.Merge) > 0, "merge")
@@ -380,6 +381,16 @@ func validateStepFields(m *Manifest) []Finding {
 					Path: fmt.Sprintf("packages.%s.%s[%d]", name, kind, idx),
 					Msg:  `arrays must be "append" or "replace"`,
 				})
+			}
+			if js, ok := step.(JSONMergeStep); ok {
+				for _, r := range js.Remove {
+					if slices.Contains(strings.Split(r, "."), "") {
+						findings = append(findings, Finding{
+							Path: fmt.Sprintf("packages.%s.%s[%d]", name, kind, idx),
+							Msg:  fmt.Sprintf("remove path %q has an empty key", r),
+						})
+					}
+				}
 			}
 			if sv, ok := step.(ServiceStep); ok && sv.StartInterval != nil {
 				if sv.KeepAlive == nil || *sv.KeepAlive {
